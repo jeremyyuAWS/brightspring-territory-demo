@@ -5,6 +5,7 @@ import { Plan } from './views/Plan'
 import { Today } from './views/Today'
 import { Accounts } from './views/Accounts'
 import { DataSimPanel } from './components/DataSimPanel'
+import { Assistant } from './assistant/Assistant'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'home', label: 'Home' },
@@ -50,6 +51,7 @@ export default function App() {
         </nav>
         <div className="spacer" />
         <span className="env-pill"><span className="dot" /> Demo · Synthetic Data</span>
+        <button className="top-btn ai" onClick={() => actions.toggleAssistant(true)}>◇ Ask Copilot</button>
         <button className="top-btn" onClick={() => setShowInfo(true)}>Data &amp; Simulation</button>
         <button className="top-btn" onClick={() => { if (actions.hasChanges()) setShowReset(true); else actions.reset() }}>↺ Reset demo</button>
       </header>
@@ -80,6 +82,7 @@ export default function App() {
       )}
 
       {showInfo && <DataSimPanel onClose={() => setShowInfo(false)} />}
+      <Assistant />
     </div>
   )
 }

@@ -172,20 +172,26 @@ function Contacts({ id }: { id: string }) {
 }
 
 function Activities({ id }: { id: string }) {
-  const list = ACTIVITIES.filter(a => a.accountId === id)
+  const s = useStore()
+  const extra = s.extraActivities.filter(a => a.accountId === id)
+  const list = [...extra, ...ACTIVITIES.filter(a => a.accountId === id)]
   if (!list.length) return <div className="empty">No activity in the selected period.</div>
   return (
     <div className="timeline">
-      {list.map(v => (
-        <div key={v.id} className="tl-item done">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <b style={{ fontSize: 13 }}>{v.date}</b>
-            <span className="badge neutral" style={{ fontSize: 11 }}>{v.channel}</span>
+      {list.map(v => {
+        const isNew = extra.some(e => e.id === v.id)
+        return (
+          <div key={v.id} className="tl-item done">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <b style={{ fontSize: 13 }}>{v.date}</b>
+              <span className="badge neutral" style={{ fontSize: 11 }}>{v.channel}</span>
+              {isNew && <span className="badge sim" style={{ fontSize: 10 }}>◇ Copilot capture</span>}
+            </div>
+            <div style={{ fontSize: 13 }}>{v.outcome}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{v.owner}</div>
           </div>
-          <div style={{ fontSize: 13 }}>{v.outcome}</div>
-          <div className="muted" style={{ fontSize: 12 }}>{v.owner}</div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

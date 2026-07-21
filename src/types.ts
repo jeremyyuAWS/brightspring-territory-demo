@@ -170,3 +170,39 @@ export interface ProposedChange {
   constraint?: string
   flagOnly?: boolean
 }
+
+// ---- AI copilot ----
+export interface MemoryChip {
+  id: string
+  label: string
+  kind: 'account' | 'territory' | 'contact' | 'time' | 'referral' | 'constraint'
+}
+
+export interface FollowUpTask {
+  id: string
+  title: string
+  accountName: string
+  dueDate: string
+  owner: string
+  source: string
+  done: boolean
+}
+
+export type ProposalKind = 'crm' | 'reschedule' | 'monthlyPlan'
+
+export interface AssistantProposal {
+  id: string
+  kind: ProposalKind
+  title: string
+  summary: string
+  fields?: { label: string; value: string; changed?: boolean }[]
+  changes?: { label: string; detail: string }[]
+  status: 'pending' | 'applied' | 'undone'
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  proposal?: AssistantProposal
+}

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Referral, AuditEntry, ReferralStage } from './types'
+import type { Referral, AuditEntry, ReferralStage, MemoryChip, ChatMessage, FollowUpTask, Activity, AssistantProposal } from './types'
 import { REFERRALS, TERRITORIES, MARKET_BASELINE, MARKET_OPTIMIZED } from './seed'
 
 export type TabKey = 'home' | 'plan' | 'today' | 'accounts'
@@ -26,6 +26,14 @@ export interface DemoState {
   builderOpen: boolean
   // undo: snapshot of the reversible slice captured before the last op
   undoLabel: string | null
+  // ---- AI copilot ----
+  assistantOpen: boolean
+  memory: MemoryChip[]
+  messages: ChatMessage[]
+  tasks: FollowUpTask[]
+  extraActivities: Activity[]
+  monthlyPlanApplied: boolean
+  rescheduleApplied: boolean
 }
 
 const SEED_VERSION = 'seed-v1'
@@ -53,11 +61,29 @@ function freshState(): DemoState {
     snapshotReady: false,
     builderOpen: false,
     undoLabel: null,
+    assistantOpen: false,
+    memory: [],
+    messages: [],
+    tasks: [],
+    extraActivities: [],
+    monthlyPlanApplied: false,
+    rescheduleApplied: false,
   }
 }
 
 // ---- undo memory (kept outside serialized state) ----
-let undoSnapshot: Pick<DemoState, 'referrals' | 'optimizationApplied'> | null = null
+type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied'>
+let undoSnapshot: UndoSlice | null = null
+function snapUndo(): UndoSlice {
+  return {
+    referrals: state.referrals.map(r => ({ ...r })),
+    optimizationApplied: state.optimizationApplied,
+    tasks: state.tasks.map(t => ({ ...t })),
+    extraActivities: state.extraActivities.map(a => ({ ...a })),
+    monthlyPlanApplied: state.monthlyPlanApplied,
+    rescheduleApplied: state.rescheduleApplied,
+  }
+}
 
 let state: DemoState = load()
 const listeners = new Set<() => void>()
@@ -117,7 +143,7 @@ export const actions = {
   closeBuilder() { set({ builderOpen: false }) },
 
   applyOptimization() {
-    undoSnapshot = { referrals: state.referrals.map(r => ({ ...r })), optimizationApplied: state.optimizationApplied }
+    undoSnapshot = snapUndo()
     addAudit({
       actor: 'Demo Manager', action: 'Applied territory optimization (Balanced Coverage)',
       detail: 'Simulated', before: 'Priority coverage 76% · 1 at-risk · 10 uncovered priority',
@@ -129,7 +155,7 @@ export const actions = {
   undo() {
     if (undoSnapshot) {
       addAudit({ actor: 'Demo Manager', action: 'Undo last operation', detail: 'Simulated · restored prior state' })
-      set({ referrals: undoSnapshot.referrals, optimizationApplied: undoSnapshot.optimizationApplied, undoLabel: null })
+      set({ ...undoSnapshot, undoLabel: null })
       undoSnapshot = null
     }
   },
@@ -137,14 +163,14 @@ export const actions = {
   addReferral(r: Omit<Referral, 'id'>) {
     const nextId = `R-${1043 + state.referrals.length}`
     const referral: Referral = { ...r, id: nextId }
-    undoSnapshot = { referrals: state.referrals.map(x => ({ ...x })), optimizationApplied: state.optimizationApplied }
+    undoSnapshot = snapUndo()
     addAudit({ actor: 'Demo Manager', action: `Logged referral ${nextId}`, detail: `Simulated · ${r.serviceLine} · ${r.sourceOrg}`, after: `Stage: ${r.stage}` })
     set({ referrals: [referral, ...state.referrals], undoLabel: `Undo ${nextId}` })
     return nextId
   },
 
   updateReferralStage(id: string, stage: ReferralStage, metFamily?: Referral['metFamily'], note?: string) {
-    undoSnapshot = { referrals: state.referrals.map(x => ({ ...x })), optimizationApplied: state.optimizationApplied }
+    undoSnapshot = snapUndo()
     const prev = state.referrals.find(r => r.id === id)
     const referrals = state.referrals.map(r => r.id === id ? { ...r, stage, metFamily: metFamily ?? r.metFamily, notes: note ? note : r.notes } : r)
     addAudit({ actor: 'Demo Manager', action: `Updated ${id} disposition`, detail: 'Simulated', before: `Stage: ${prev?.stage}`, after: `Stage: ${stage}` })
@@ -180,6 +206,43 @@ export const actions = {
     addAudit({ actor: 'Demo Manager', action: 'Salesforce sync (queued)', detail: 'Demo simulation · no live write' })
   },
 
+  // ---------- AI copilot ----------
+  toggleAssistant(open?: boolean) { set({ assistantOpen: open ?? !state.assistantOpen }) },
+  pushMemory(chips: MemoryChip[]) {
+    const have = new Set(state.memory.map(m => m.id))
+    const merged = [...state.memory, ...chips.filter(c => !have.has(c.id))]
+    set({ memory: merged.slice(-8) })
+  },
+  clearMemory() { set({ memory: [] }) },
+  addMessage(msg: ChatMessage) { set({ messages: [...state.messages, msg] }) },
+  setProposalStatus(messageId: string, status: AssistantProposal['status']) {
+    set({ messages: state.messages.map(m => m.proposal && m.id === messageId ? { ...m, proposal: { ...m.proposal, status } } : m) })
+  },
+  addTask(task: FollowUpTask) { set({ tasks: [task, ...state.tasks] }) },
+  toggleTask(id: string) { set({ tasks: state.tasks.map(t => t.id === id ? { ...t, done: !t.done } : t) }) },
+
+  applyCrm(activity: Activity, task: FollowUpTask) {
+    undoSnapshot = snapUndo()
+    addAudit({ actor: 'Jordan Ellis (AI capture)', action: `Logged ${activity.channel.toLowerCase()} at ${task.accountName}`, detail: 'Simulated · voice → CRM', after: `${activity.outcome}; follow-up ${task.dueDate}` })
+    set({ extraActivities: [activity, ...state.extraActivities], tasks: [task, ...state.tasks], undoLabel: `Undo CRM entry` })
+  },
+
+  applyReschedule(moved: { title: string; accountName: string; dueDate: string }[]) {
+    undoSnapshot = snapUndo()
+    const newTasks: FollowUpTask[] = moved.map((m, i) => ({
+      id: `tk-resched-${i}`, title: m.title, accountName: m.accountName, dueDate: m.dueDate,
+      owner: 'Jordan Ellis', source: 'Emergency reschedule', done: false,
+    }))
+    addAudit({ actor: 'Jordan Ellis (AI agent)', action: 'Applied emergency reschedule', detail: 'Simulated · afternoon cleared', before: '3 afternoon stops + 1 referral follow-up', after: `${moved.length} rescheduled; urgent R-1042 follow-up preserved` })
+    set({ rescheduleApplied: true, tasks: [...newTasks, ...state.tasks], undoLabel: 'Undo reschedule' })
+  },
+
+  applyMonthlyPlan() {
+    undoSnapshot = snapUndo()
+    addAudit({ actor: 'Demo Manager (AI plan)', action: 'Applied AI monthly plan', detail: 'Simulated', before: 'Front-loaded, 6 Tier-1 uncovered', after: 'Balanced 4-week plan · all Tier-1 covered · Fridays lighter' })
+    set({ monthlyPlanApplied: true, undoLabel: 'Undo monthly plan' })
+  },
+
   reset() {
     undoSnapshot = null
     state = freshState()
@@ -188,6 +251,7 @@ export const actions = {
 
   hasChanges(): boolean {
     return state.optimizationApplied || state.audit.length > 0 || state.referrals.length !== REFERRALS.length
+      || state.tasks.length > 0 || state.extraActivities.length > 0 || state.monthlyPlanApplied || state.rescheduleApplied || state.messages.length > 0
   },
 }
 

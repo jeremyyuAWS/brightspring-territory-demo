@@ -66,6 +66,13 @@ export function Today() {
         <span className="badge neutral" style={{ alignSelf: 'center' }}>Manager view</span>
       </div>
 
+      {s.rescheduleApplied && (
+        <div className="callout" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', marginBottom: 14 }}>
+          <span className="ico">◆</span>
+          <div><b>Copilot cleared Jordan's afternoon.</b> 3 unconfirmed stops rescheduled, the urgent R-1042 follow-up preserved, and customer notes drafted. See the follow-up tasks below — reversible via Undo.</div>
+        </div>
+      )}
+
       <div className="home-grid">
         <div className="panel">
           <div className="phead"><h3>Rep roster</h3><span className="hint">Select a rep to see the route</span></div>
@@ -107,6 +114,27 @@ export function Today() {
           </div>
         </div>
       </div>
+
+      {s.tasks.length > 0 && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <div className="phead">
+            <h3>Follow-up tasks</h3>
+            <span className="badge sim" style={{ fontSize: 11 }}>◆ {s.tasks.length} from Copilot</span>
+          </div>
+          <div className="pbody">
+            {s.tasks.map(tk => (
+              <label key={tk.id} className="task-row">
+                <input type="checkbox" checked={tk.done} onChange={() => actions.toggleTask(tk.id)} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, textDecoration: tk.done ? 'line-through' : 'none', color: tk.done ? 'var(--text-3)' : 'inherit' }}>{tk.title}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{tk.accountName} · due {tk.dueDate} · {tk.owner}</div>
+                </div>
+                <span className="badge neutral" style={{ fontSize: 10.5 }}>{tk.source}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {rebalanceOpen && selRep && <Rebalance repId={selRep} onClose={() => setRebalanceOpen(false)} />}
     </div>

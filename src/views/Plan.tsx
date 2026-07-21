@@ -21,10 +21,18 @@ export function Plan() {
           </div>
         </div>
         <div className="spacer" />
+        {s.monthlyPlanApplied && <span className="badge sim" style={{ alignSelf: 'center' }}>◇ AI monthly plan applied</span>}
         {s.optimizationApplied
           ? <span className="badge sim" style={{ alignSelf: 'center' }}>◆ Reflecting applied optimization</span>
           : <span className="badge neutral" style={{ alignSelf: 'center' }}>Baseline plan</span>}
       </div>
+
+      {s.monthlyPlanApplied && (
+        <div className="callout" style={{ background: '#f2f7fd', borderColor: '#bcd4ee', color: '#12385f', marginBottom: 14 }}>
+          <span className="ico">◇</span>
+          <div><b>Copilot built this month.</b> Every Tier-1 account covered, your 11 existing meetings protected, and Fridays kept lighter — work distributed W1 26% · W2 27% · W3 25% · W4 22% instead of front-loading. Reversible via Undo.</div>
+        </div>
+      )}
 
       <div className="panel">
         <div className="phead">
