@@ -24,6 +24,7 @@ export interface DemoState {
   audit: AuditEntry[]
   snapshotReady: boolean
   builderOpen: boolean
+  zipBuilderOpen: boolean
   // undo: snapshot of the reversible slice captured before the last op
   undoLabel: string | null
   // ---- AI copilot ----
@@ -65,6 +66,7 @@ function freshState(): DemoState {
     audit: [],
     snapshotReady: false,
     builderOpen: false,
+    zipBuilderOpen: false,
     undoLabel: null,
     assistantOpen: false,
     memory: [],
@@ -153,6 +155,8 @@ export const actions = {
   },
   openBuilder() { set({ builderOpen: true, selectedTerritoryId: 't-south' }) },
   closeBuilder() { set({ builderOpen: false }) },
+  openZipBuilder() { set({ zipBuilderOpen: true, tab: 'home' }) },
+  closeZipBuilder() { set({ zipBuilderOpen: false }) },
 
   applyOptimization() {
     undoSnapshot = snapUndo()

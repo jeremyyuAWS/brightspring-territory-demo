@@ -20,7 +20,6 @@ const KPI_LABEL: Record<string, string> = {
 export function Home() {
   const s = useStore()
   const [compareOpen, setCompareOpen] = useState(false)
-  const [zipBuilder, setZipBuilder] = useState(false)
   const kpis = marketKpis(s)
   const rows = territoryRows(s)
   const ins = insights(s)
@@ -48,7 +47,7 @@ export function Home() {
             <div className="phead">
               <h3>Territory health — Richmond market</h3>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn sm" onClick={() => setZipBuilder(true)}>✎ Edit territories</button>
+                <button className="btn sm" onClick={() => actions.openZipBuilder()}>✎ Edit territories</button>
                 <button className="btn primary sm" onClick={() => actions.openBuilder()}>◆ Optimize territories</button>
               </div>
             </div>
@@ -123,7 +122,7 @@ export function Home() {
 
       {s.builderOpen && <TerritoryBuilder />}
       {compareOpen && <CompareReps onClose={() => setCompareOpen(false)} />}
-      {zipBuilder && <ZipTerritoryBuilder onClose={() => setZipBuilder(false)} />}
+      {s.zipBuilderOpen && <ZipTerritoryBuilder onClose={() => actions.closeZipBuilder()} />}
     </div>
   )
 }
