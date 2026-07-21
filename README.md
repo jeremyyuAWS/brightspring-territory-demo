@@ -7,6 +7,9 @@ _Territory Management Demo PRD_ (demo date July 22, 2026).
 **Synthetic, non-PHI, resettable data. No live Salesforce / HCHB / Morado integration.**
 Every operation is deterministic and reversible.
 
+**Repository:** https://github.com/jeremyyuAWS/brightspring-territory-demo
+_(No hosted deployment yet — clone and run locally per the steps below.)_
+
 ## Run it
 
 ```bash
