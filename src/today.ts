@@ -9,20 +9,33 @@ export type TimelineItem =
 
 export interface ScheduleFix { id: string; label: string; detail: string; newHome: string; removesAccount?: string; convertsAccount?: string }
 
+export interface NearbyOpp {
+  name: string; lng: number; lat: number
+  offRouteMin: number; tier: string; daysSince: number; note: string
+}
+
 export interface RepDay {
   homeBy: string
   projectedHome: string
   openCapacityMin: number
   totalDriveMin: number
   stops: number
+  territoryId: string
+  customerMin: number
+  checkinMin: number
   risk?: { text: string; fixes: ScheduleFix[] }
   timeline: TimelineItem[]
   routeStops: { name: string; lng: number; lat: number }[]
+  nearby?: NearbyOpp
+  nextStop?: { name: string; etaMin: number; arrive: string; meeting: string; ask: string; opportunity: string; lastContact: string }
 }
 
 export const DAYS: Record<string, RepDay> = {
   'r-jordan': {
     homeBy: '5:30 PM', projectedHome: '6:10 PM', openCapacityMin: 0, totalDriveMin: 156, stops: 6,
+    territoryId: 't-south', customerMin: 260, checkinMin: 24,
+    nearby: { name: 'Woodhaven Medical Center', lng: -77.485, lat: 37.50, offRouteMin: 6, tier: 'Tier 1', daysSince: 74, note: 'new administrator; averaged 6 referrals/mo, none in 74 days' },
+    nextStop: { name: 'Woodlake Skilled Nursing', etaMin: 28, arrive: '2:00 PM', meeting: 'intro visit', ask: 'discharge referral process', opportunity: 'Home Health whitespace', lastContact: 'first visit' },
     risk: {
       text: 'The 2:00 PM Woodlake visit creates a 22-minute late-arrival risk and puts Jordan home after 6:10 PM — 40 minutes past his 5:30 PM target.',
       fixes: [
@@ -59,6 +72,8 @@ export const DAYS: Record<string, RepDay> = {
   },
   'r-maya': {
     homeBy: '5:30 PM', projectedHome: '5:05 PM', openCapacityMin: 55, totalDriveMin: 78, stops: 3,
+    territoryId: 't-central', customerMin: 130, checkinMin: 16,
+    nearby: { name: 'Monument Physicians', lng: -77.455, lat: 37.545, offRouteMin: 4, tier: 'Tier 2', daysSince: 33, note: 'referral follow-up due' },
     timeline: [
       { kind: 'meeting', time: '9:00a', dur: 45, account: 'Monument Rehabilitation', purpose: 'In-service', hours: '8a–6p', status: 'Confirmed' },
       { kind: 'drive', minutes: 16, to: 'Shockoe Physicians' },
@@ -75,6 +90,9 @@ export const DAYS: Record<string, RepDay> = {
   },
   'r-alex': {
     homeBy: '5:00 PM', projectedHome: '4:40 PM', openCapacityMin: 40, totalDriveMin: 64, stops: 3,
+    territoryId: 't-north', customerMin: 130, checkinMin: 24,
+    nearby: { name: 'Glen Allen Senior Living', lng: -77.452, lat: 37.606, offRouteMin: 6, tier: 'Tier 1', daysSince: 41, note: 'new administrator started 3 weeks ago' },
+    nextStop: { name: 'Lakeside Assisted Living', etaMin: 18, arrive: '12:42 PM', meeting: 'administrator introduction', ask: 'hospice referral process', opportunity: 'Home Health whitespace', lastContact: '38 days ago' },
     timeline: [
       { kind: 'meeting', time: '8:45a', dur: 45, account: 'Glenmore Skilled Nursing', purpose: 'Discharge planning', hours: '7a–6p', status: 'Confirmed' },
       { kind: 'drive', minutes: 18, to: 'Innsbrook Physicians' },
@@ -90,6 +108,7 @@ export const DAYS: Record<string, RepDay> = {
   },
   'r-taylor': {
     homeBy: '5:30 PM', projectedHome: '5:35 PM', openCapacityMin: 20, totalDriveMin: 96, stops: 3,
+    territoryId: 't-east', customerMin: 130, checkinMin: 20,
     risk: {
       text: 'High drive burden today (96 min) leaves Taylor projected home at 5:35 PM. One stop is an unconfirmed intro on the north edge.',
       fixes: [
@@ -112,6 +131,7 @@ export const DAYS: Record<string, RepDay> = {
   },
   'r-sam': {
     homeBy: '5:30 PM', projectedHome: '5:00 PM', openCapacityMin: 45, totalDriveMin: 70, stops: 3,
+    territoryId: 't-west', customerMin: 130, checkinMin: 18,
     timeline: [
       { kind: 'meeting', time: '9:15a', dur: 45, account: 'Short Pump Physicians', purpose: 'Referral review', hours: '8a–5p', status: 'Confirmed' },
       { kind: 'drive', minutes: 16, to: 'Westhampton Rehab' },

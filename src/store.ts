@@ -286,6 +286,16 @@ export const actions = {
     set({ placedRemaining: true, tasks: [...tasks, ...state.tasks], undoLabel: 'Undo placement' })
   },
 
+  addNearbyStop(name: string, note: string) {
+    const task: FollowUpTask = { id: `tk-near-${name}`, title: `Added to today: ${name}`, accountName: name, dueDate: '2026-07-22', owner: 'Field rep', source: 'Near-my-route', done: false }
+    addAudit({ actor: 'Field rep (AI)', action: `Added ${name} to today's route`, detail: 'Simulated', after: note })
+    set({ tasks: [task, ...state.tasks], undoLabel: 'Undo add stop' })
+  },
+  optimizeMyDay() {
+    addAudit({ actor: 'Field rep (AI)', action: 'Optimized my day', detail: 'Simulated', after: 'Route reordered; 12 min drive saved; home-by preserved' })
+    set({ undoLabel: 'Undo optimize day' })
+  },
+
   simulateCalendarSync() {
     addAudit({ actor: 'Demo Manager', action: 'Calendar sync (Google / M365)', detail: 'Demo simulation · busy blocks imported, personal time protected' })
     set({ calendarSynced: true })

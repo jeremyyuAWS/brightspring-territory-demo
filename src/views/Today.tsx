@@ -4,11 +4,13 @@ import { REPS, TERRITORIES, OPTIMIZED_CAPACITY } from '../seed'
 import { statusFor } from '../selectors'
 import { DAYS, type RepDay, type TimelineItem, type ScheduleFix } from '../today'
 import { Drawer, StatusBadge } from '../ui'
+import { RepView } from './RepView'
 
 export function Today() {
   const s = useStore()
   const applied = s.optimizationApplied
   const [selRep, setSelRep] = useState<string | null>('r-jordan')
+  const [role, setRole] = useState<'manager' | 'rep'>('manager')
   const [rebalanceOpen, setRebalanceOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   const reps = REPS.filter(r => r.territoryId)
@@ -16,14 +18,29 @@ export function Today() {
   return (
     <div>
       <div className="filterbar">
-        <div className="field"><label>View</label><select disabled><option>Rep roster · Today</option></select></div>
+        <div className="field"><label>View</label>
+          <div className="map-toggle">
+            <button className={role === 'manager' ? 'active' : ''} onClick={() => setRole('manager')}>Manager View</button>
+            <button className={role === 'rep' ? 'active' : ''} onClick={() => setRole('rep')}>Rep View</button>
+          </div>
+        </div>
         <div className="field"><label>Date</label><select disabled><option>Jul 22, 2026</option></select></div>
         <div className="spacer" />
+        {role === 'rep' && (
+          <div className="field"><label>Representative</label>
+            <select value={selRep ?? 'r-alex'} onChange={e => setSelRep(e.target.value)}>
+              {reps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+        )}
         {s.calendarSynced
           ? <span className="badge sim" style={{ alignSelf: 'center' }}>◆ Calendar synced</span>
-          : <button className="btn sm" onClick={() => actions.simulateCalendarSync()}>⟳ Sync calendar (Google / M365)</button>}
-        <span className="badge neutral" style={{ alignSelf: 'center' }}>Manager view</span>
+          : <button className="btn sm" onClick={() => actions.simulateCalendarSync()}>⟳ Sync calendar</button>}
       </div>
+
+      {role === 'rep' ? <RepView repId={selRep ?? 'r-alex'} /> : (
+      <>
+        {/* Manager View */}
 
       {s.calendarSynced && <CalendarSyncCard />}
 
@@ -105,11 +122,13 @@ export function Today() {
 
       {rebalanceOpen && selRep && <Rebalance repId={selRep} onClose={() => setRebalanceOpen(false)} />}
       {navOpen && selRep && <NavLaunch repId={selRep} onClose={() => setNavOpen(false)} />}
+      </>
+      )}
     </div>
   )
 }
 
-function timeToMin(t: string) {
+export function timeToMin(t: string) {
   const m = t.match(/(\d+):(\d+)\s*(am|pm|a|p)?/i)
   if (!m) return 0
   let h = +m[1]; const min = +m[2]; const ap = (m[3] || '').toLowerCase()
