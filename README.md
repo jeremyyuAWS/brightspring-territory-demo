@@ -7,8 +7,13 @@ _Territory Management Demo PRD_ (demo date July 22, 2026).
 **Synthetic, non-PHI, resettable data. No live Salesforce / HCHB / Morado integration.**
 Every operation is deterministic and reversible.
 
+**Live demo:** https://brightspring-territory-demo.netlify.app
 **Repository:** https://github.com/jeremyyuAWS/brightspring-territory-demo
-_(No hosted deployment yet — clone and run locally per the steps below.)_
+
+_The hosted demo runs on the built-in inline-SVG map (no token embedded in the public bundle).
+To enable the live Mapbox basemap on the deployment, set `VITE_MAPBOX_ACCESS_TOKEN` in Netlify
+(Site settings → Environment variables) and add the `*.netlify.app` domain to the token's URL
+restrictions in your Mapbox account._
 
 ## Run it
 
