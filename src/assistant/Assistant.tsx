@@ -1,7 +1,73 @@
 import { useState, useRef, useEffect } from 'react'
-import { useStore, actions } from '../store'
+import { useStore, actions, type DemoState } from '../store'
 import type { ChatMessage, AssistantProposal } from '../types'
 import { runEngine, detectChips, SUGGESTED_PROMPTS } from './engine'
+import { ACCOUNTS, OPTIMIZED_CAPACITY, REPS } from '../seed'
+import { territoryById, repById, metricsFor, accountCovered } from '../selectors'
+
+// ---- map-context awareness: chips + grounded answers about the current selection ----
+function mapContext(s: DemoState) {
+  const terr = s.selectedTerritoryId ? territoryById(s.selectedTerritoryId) : null
+  const rep = s.repDrillId ? repById(s.repDrillId) : null
+  const acct = (s.facilityId || s.fromAccountId) ? ACCOUNTS.find(a => a.id === (s.facilityId || s.fromAccountId)) : null
+  return { terr, rep, acct, period: s.filters.period }
+}
+function contextChips(s: DemoState) {
+  const { terr, rep, acct, period } = mapContext(s)
+  const chips: { icon: string; label: string }[] = []
+  if (terr) chips.push({ icon: '📍', label: terr.name })
+  if (rep) chips.push({ icon: '🧑‍💼', label: rep.name })
+  if (acct) chips.push({ icon: '🏥', label: acct.name })
+  chips.push({ icon: '🗓️', label: period })
+  return chips
+}
+function contextQuestions(s: DemoState): string[] {
+  const { terr, rep, acct } = mapContext(s)
+  if (acct) return [`Why is ${acct.name} ${acct.priority.toLowerCase()} priority?`, `What's the next best action for ${acct.name}?`, `What changes if ${acct.name} moves to another rep?`]
+  if (rep) return [`What should ${rep.name.split(' ')[0]} do next?`, `Which rep is better positioned for ${terr?.name}?`, `What changes if we rebalance ${rep.name.split(' ')[0]}'s load?`]
+  if (terr) return [`Why is ${terr.name} under-covered?`, `Build a visit plan for ${terr.name}.`]
+  return SUGGESTED_PROMPTS
+}
+// grounded, deterministic answers using live selection data (returns null → fall through to runEngine)
+function contextAnswer(text: string, s: DemoState): string | null {
+  const t = text.toLowerCase()
+  const { terr, rep, acct } = mapContext(s)
+  const applied = s.optimizationApplied
+  const otherRep = REPS.filter(r => r.territoryId && r.id !== rep?.id).sort((a, b) => a.capacityPct - b.capacityPct)[0]
+  if (acct && /why.*(priority|high priority)/.test(t)) {
+    const covered = accountCovered(acct, applied)
+    return `**${acct.name}** is ${acct.priority} priority because of its size and opportunity: ${acct.beds} beds, ${acct.facilityType}, opportunity score ${acct.opportunityScore}. It's currently **${covered ? 'covered' : 'uncovered'}**, ${acct.lastContactDays} days since the last meaningful touch${acct.whitespace.length ? `, with **${acct.whitespace[0]}** whitespace still open` : ''}.`
+  }
+  if (acct && /(next best action|next action|do next|should.*do)/.test(t)) {
+    const covered = accountCovered(acct, applied)
+    if (!covered && acct.isPriority) return `Next best action for **${acct.name}**: schedule a first visit this month — it's a high-priority account with no coverage. I can add it to ${rep?.name.split(' ')[0] ?? 'the'} plan and draft an intro agenda.`
+    if (acct.whitespace.length) return `Next best action for **${acct.name}**: introduce **${acct.whitespace[0]}** — an eligible service line not yet captured. Want me to draft the cross-sell talking points?`
+    return `Next best action for **${acct.name}**: advance the active referral and confirm preferred-provider terms with the decision maker.`
+  }
+  if (acct && /what changes if.*(move|reassign)/.test(t) && rep && otherRep) {
+    return `Moving **${acct.name}** from ${rep.name.split(' ')[0]} to ${otherRep.name.split(' ')[0]} shifts ~4 capacity points: ${rep.name.split(' ')[0]} eases from ${applied ? OPTIMIZED_CAPACITY[rep.id] : rep.capacityPct}% toward the ceiling, and ${otherRep.name.split(' ')[0]} (currently ${otherRep.capacityPct}%) still has headroom. Priority coverage in the receiving territory ticks up. Reversible — want a preview?`
+  }
+  if (rep && /(do next|should.*do)/.test(t)) {
+    const terrM = terr ? metricsFor(terr, applied) : null
+    return `${rep.name.split(' ')[0]}'s priority right now: the ${terrM?.uncoveredPriority ?? 'uncovered'} priority accounts with no visit this month. ${rep.capacityPct > 100 ? `But ${rep.name.split(' ')[0]} is at ${applied ? OPTIMIZED_CAPACITY[rep.id] : rep.capacityPct}% capacity — the fix is rebalancing load, not adding activity.` : `There's capacity to absorb them — I can build the visit plan.`}`
+  }
+  if (rep && otherRep && /(which rep|better positioned|better own)/.test(t)) {
+    return `**${otherRep.name}** is better positioned to absorb work — ${otherRep.capacityPct}% capacity vs ${rep.name.split(' ')[0]}'s ${applied ? OPTIMIZED_CAPACITY[rep.id] : rep.capacityPct}%. Moving two border accounts near the shared boundary would drop ${rep.name.split(' ')[0]} toward ~96% and lift priority coverage. Want the reassignment preview?`
+  }
+  if (rep && /rebalance.*load|what changes.*rebalance/.test(t)) {
+    return `Rebalancing ${rep.name.split(' ')[0]}: move two western-border accounts to ${otherRep?.name.split(' ')[0] ?? 'an adjacent rep'} and shift one follow-up to next week. Projected: capacity ${applied ? OPTIMIZED_CAPACITY[rep.id] : rep.capacityPct}% → ~96%, priority coverage up, drive hours down. Run it through the optimizer to preview?`
+  }
+  if (terr && /why.*(under.?covered|coverage|at.?risk)/.test(t)) {
+    const m = metricsFor(terr, applied); const r = repById(terr.repId)
+    return `**${terr.name}** sits at ${m.priorityCoveragePct}% priority coverage — ${m.uncoveredPriority} priority accounts have no visit this month. The root cause is capacity: ${r?.name} is at ${applied ? OPTIMIZED_CAPACITY[terr.repId] : r?.capacityPct}% with ${m.driveHrs} drive hrs/week. It's a load problem, not an effort problem.`
+  }
+  if (terr && /(visit plan|build.*plan)/.test(t)) {
+    const accts = ACCOUNTS.filter(a => a.territoryId === terr.id)
+    const unc = accts.filter(a => a.isPriority && !accountCovered(a, applied)).slice(0, 3)
+    return `Visit plan for **${terr.name}**: start with the uncovered priority accounts — ${unc.map(a => a.name).join(', ') || 'none outstanding'} — then the overdue-contact accounts. That's roughly ${unc.length + 2} stops; I can sequence them by drive time and drop them into the month plan. Want me to draft it?`
+  }
+  return null
+}
 
 let mid = 0
 const msgId = () => `m-${++mid}`
@@ -40,7 +106,8 @@ export function Assistant() {
     setInput('')
     actions.pushMemory(detectChips(clean))
     actions.addMessage({ id: msgId(), role: 'user', text: clean })
-    const res = runEngine(clean)
+    const grounded = contextAnswer(clean, s)
+    const res = grounded ? { reply: grounded } : runEngine(clean)
     if (res.navigate) actions.setTab(res.navigate)
     // brief “thinking” delay for realism
     setTimeout(() => {
@@ -69,6 +136,14 @@ export function Assistant() {
           <button className="iconbtn" onClick={() => actions.toggleAssistant(false)} aria-label="Close">×</button>
         </div>
 
+        {/* map context — the copilot knows what you're looking at */}
+        {(s.selectedTerritoryId || s.repDrillId || s.facilityId || s.fromAccountId) && (
+          <div className="cp-context">
+            <span className="cp-mem-label">Map context</span>
+            {contextChips(s).map((c, i) => <span key={i} className="memchip context">{c.icon} {c.label}</span>)}
+          </div>
+        )}
+
         {/* working memory */}
         <div className="cp-memory">
           <span className="cp-mem-label">Working memory</span>
@@ -82,7 +157,7 @@ export function Assistant() {
             <div className="cp-empty">
               <p style={{ fontWeight: 650, marginBottom: 4 }}>Ask me to act across the workflow.</p>
               <p className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>I keep context in working memory and every action previews before it writes.</p>
-              {SUGGESTED_PROMPTS.map((p, i) => (
+              {contextQuestions(s).map((p, i) => (
                 <button key={i} className="cp-suggest" onClick={() => send(p)}>{p}</button>
               ))}
             </div>
