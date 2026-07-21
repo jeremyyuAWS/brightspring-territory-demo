@@ -1,5 +1,5 @@
 import { actions, useStore } from '../store'
-import { ACCOUNTS } from '../seed'
+import { ACCOUNTS, OPTIMIZED_CAPACITY } from '../seed'
 import { repById, territoryById, accountCovered } from '../selectors'
 import type { Account } from '../types'
 
@@ -47,6 +47,7 @@ export function FacilityModal() {
   if (!a) return null
   const covered = accountCovered(a, s.optimizationApplied)
   const rep = repById(territoryById(a.territoryId)!.repId)
+  const ownerCap = rep ? (s.optimizationApplied ? OPTIMIZED_CAPACITY[rep.id] : rep.capacityPct) : 0
   const dm = decisionMaker(a)
   const fc = forecast(a)
   const act = nextAction(a, covered)
@@ -71,6 +72,13 @@ export function FacilityModal() {
             : <span className="badge" style={{ background: '#fee2e2', color: '#b91c1c' }}>Uncovered</span>}
           {a.referralActive && <span className="badge" style={{ background: '#f0fdfa', color: '#0f766e' }}>● Active referral</span>}
         </div>
+
+        {rep && (
+          <button className="fac-owner" onClick={() => actions.openRepDrill(rep.id, a.id)}>
+            <span>Owner: <b>{rep.name}</b> · {ownerCap}% capacity</span>
+            <span className="fac-owner-go">View rep intelligence →</span>
+          </button>
+        )}
 
         <div className="fac-body">
           <div className="fac-stats">

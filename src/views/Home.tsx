@@ -10,6 +10,7 @@ import { StatusBadge, AnimatedNumber } from '../ui'
 import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
 import { ZipTerritoryBuilder } from '../components/ZipTerritoryBuilder'
 import { FacilityModal } from '../components/FacilityModal'
+import { RepIntel } from '../components/RepIntel'
 
 const KPI_LABEL: Record<string, string> = {
   coverage: 'covered vs uncovered priority accounts',
@@ -34,8 +35,14 @@ export function Home() {
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <button className="crumb" onClick={() => actions.clearSelection()}>Richmond</button>
           <span className="crumb-sep">›</span>
-          <span className="crumb current">{selTerr.name}</span>
-          <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>· map & table filtered to this territory</span>
+          {s.repDrillId
+            ? <button className="crumb" onClick={() => actions.closeRepDrill()}>{selTerr.name}</button>
+            : <span className="crumb current">{selTerr.name}</span>}
+          {s.repDrillId && <>
+            <span className="crumb-sep">›</span>
+            <span className="crumb current">{repById(s.repDrillId)?.name}</span>
+          </>}
+          <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>· map & table filtered</span>
         </nav>
       )}
 
@@ -69,9 +76,11 @@ export function Home() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {!selTerr && <ExecSummary applied={s.optimizationApplied} />}
+          {!selTerr && !s.repDrillId && <ExecSummary applied={s.optimizationApplied} />}
 
-          {selTerr
+          {s.repDrillId
+            ? <RepIntel />
+            : selTerr
             ? <TerritorySummary onCompare={() => setCompareOpen(true)} />
             : (
               <div className="panel">
@@ -180,7 +189,7 @@ function TerritorySummary({ onCompare }: { onCompare: () => void }) {
         <button className="iconbtn" onClick={() => actions.clearSelection()} aria-label="close">×</button>
       </div>
       <div className="pbody">
-        <div className="ts-rep">{rep?.name} · {m.accountCount} accounts</div>
+        <div className="ts-rep"><button className="rep-link" onClick={() => rep && actions.openRepDrill(rep.id)}>{rep?.name} →</button> · {m.accountCount} accounts</div>
         <div className="ts-grid">
           {stat('Priority coverage', `${m.priorityCoveragePct}%`, m.priorityCoveragePct < 65)}
           {stat('Visits / target', `${m.visitsCompleted}/${m.visitsTarget}`)}

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { Referral, AuditEntry, ReferralStage, MemoryChip, ChatMessage, FollowUpTask, Activity, AssistantProposal } from './types'
-import { REFERRALS, TERRITORIES, MARKET_BASELINE, MARKET_OPTIMIZED } from './seed'
+import { REFERRALS, TERRITORIES, MARKET_BASELINE, MARKET_OPTIMIZED, REPS } from './seed'
 
 export type TabKey = 'home' | 'plan' | 'today' | 'accounts'
 
@@ -26,6 +26,8 @@ export interface DemoState {
   builderOpen: boolean
   zipBuilderOpen: boolean
   facilityId: string | null
+  repDrillId: string | null // rep whose Intelligence drawer is open (map-level rep drill)
+  fromAccountId: string | null // account we cross-drilled from (kept highlighted in the rep drawer)
   // undo: snapshot of the reversible slice captured before the last op
   undoLabel: string | null
   // ---- AI copilot ----
@@ -69,6 +71,8 @@ function freshState(): DemoState {
     builderOpen: false,
     zipBuilderOpen: false,
     facilityId: null,
+    repDrillId: null,
+    fromAccountId: null,
     undoLabel: null,
     assistantOpen: false,
     memory: [],
@@ -151,7 +155,7 @@ export const actions = {
   selectKpi(id: string | null) {
     set({ selectedKpi: state.selectedKpi === id ? null : id, selectedInsightId: null })
   },
-  clearSelection() { set({ selectedTerritoryId: null, selectedInsightId: null, selectedKpi: null, filters: { ...state.filters, status: 'all' } }) },
+  clearSelection() { set({ selectedTerritoryId: null, selectedInsightId: null, selectedKpi: null, repDrillId: null, fromAccountId: null, filters: { ...state.filters, status: 'all' } }) },
   selectInsight(id: string | null, territoryId?: string | null) {
     set({ selectedInsightId: state.selectedInsightId === id ? null : id, selectedTerritoryId: territoryId ?? state.selectedTerritoryId, selectedKpi: null })
   },
@@ -161,6 +165,13 @@ export const actions = {
   closeZipBuilder() { set({ zipBuilderOpen: false }) },
   openFacility(id: string) { set({ facilityId: id }) },
   closeFacility() { set({ facilityId: null }) },
+  // Rep Intelligence drill: highlight the rep's territory + open the rep drawer. fromAcct keeps the
+  // account we cross-drilled from visible in the drawer.
+  openRepDrill(repId: string, fromAcct: string | null = null) {
+    const terr = REPS.find(r => r.id === repId)?.territoryId ?? null
+    set({ repDrillId: repId, fromAccountId: fromAcct, facilityId: null, selectedTerritoryId: terr, selectedInsightId: null, selectedKpi: null, tab: 'home' })
+  },
+  closeRepDrill() { set({ repDrillId: null, fromAccountId: null }) },
 
   applyOptimization() {
     undoSnapshot = snapUndo()
