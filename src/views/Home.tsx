@@ -29,10 +29,19 @@ export function Home() {
     <div>
       <FilterBar />
 
-      {(s.selectedTerritoryId || s.selectedKpi || s.selectedInsightId) && (
+      {selTerr && (
+        <nav className="breadcrumb" aria-label="Breadcrumb">
+          <button className="crumb" onClick={() => actions.clearSelection()}>Richmond</button>
+          <span className="crumb-sep">›</span>
+          <span className="crumb current">{selTerr.name}</span>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>· map & table filtered to this territory</span>
+        </nav>
+      )}
+
+      {!selTerr && (s.selectedKpi || s.selectedInsightId) && (
         <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="chip">
-            {selTerr ? `${selTerr.name} selected` : s.selectedKpi ? `Highlight: ${KPI_LABEL[s.selectedKpi] ?? s.selectedKpi}` : 'Insight highlighted'}
+            {s.selectedKpi ? `Highlight: ${KPI_LABEL[s.selectedKpi] ?? s.selectedKpi}` : 'Insight highlighted'}
             <button onClick={() => actions.clearSelection()} aria-label="clear">×</button>
           </span>
           <span className="muted" style={{ fontSize: 12 }}>Map and table filtered — click ✕ to clear highlight</span>

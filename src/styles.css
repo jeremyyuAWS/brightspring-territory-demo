@@ -482,6 +482,13 @@ th.th-sort:hover { color: var(--brand); }
 .cp-mic { border: 1px solid var(--border-strong); background: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 15px; flex: none; }
 .cp-mic:hover { background: var(--surface-2); }
 
+/* ---------- territory breadcrumb ---------- */
+.breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; }
+.breadcrumb .crumb { background: none; border: none; padding: 0; font: inherit; color: var(--brand); font-weight: 600; cursor: pointer; }
+.breadcrumb .crumb:hover { text-decoration: underline; }
+.breadcrumb .crumb.current { color: var(--text-1); font-weight: 700; cursor: default; }
+.breadcrumb .crumb-sep { color: var(--text-3); }
+
 /* ---------- customer-facing map header ---------- */
 .map-titlebar { display: flex; align-items: baseline; gap: 12px; padding: 11px 16px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .map-title { font-size: 14px; font-weight: 800; letter-spacing: -.01em; color: var(--text-1); }
