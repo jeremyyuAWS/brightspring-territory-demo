@@ -9,6 +9,7 @@ import type { MarketKpis } from '../selectors'
 import { StatusBadge, AnimatedNumber } from '../ui'
 import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
 import { ZipTerritoryBuilder } from '../components/ZipTerritoryBuilder'
+import { FacilityModal } from '../components/FacilityModal'
 
 const KPI_LABEL: Record<string, string> = {
   coverage: 'covered vs uncovered priority accounts',
@@ -125,6 +126,7 @@ export function Home() {
       {s.builderOpen && <TerritoryBuilder />}
       {compareOpen && <CompareReps onClose={() => setCompareOpen(false)} />}
       {s.zipBuilderOpen && <ZipTerritoryBuilder onClose={() => actions.closeZipBuilder()} />}
+      <FacilityModal />
     </div>
   )
 }

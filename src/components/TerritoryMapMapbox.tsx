@@ -322,22 +322,10 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.on('click', 'territory-fill', e => {
         const f = e.features?.[0]; if (f) actions.selectTerritory(f.properties!.territoryId)
       })
-      const clickPopup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '260px' })
+      // Clicking a facility marker opens the rich facility modal (keeps the map in context).
       map.on('click', 'account-points', e => {
         const f = e.features?.[0]; if (!f) return
-        const p = f.properties!
-        const html = `<div class="mp-acct">
-          <b>${p.name}</b>
-          <div class="mp-sub">${p.facilityType} · ${p.priority} priority</div>
-          <div class="mp-kv"><span>Owner</span>${p.rep}</div>
-          <div class="mp-kv"><span>Coverage</span>${p.covered ? 'Covered' : '<span style="color:#dc2626">Uncovered</span>'}</div>
-          <div class="mp-kv"><span>Opportunity</span>${p.opp}</div>
-          ${p.referralActive ? '<div class="mp-tag">● Active referral</div>' : ''}
-          <button class="mp-open" type="button">Open account →</button>
-        </div>`
-        clickPopup.setLngLat((f.geometry as any).coordinates).setHTML(html).addTo(map)
-        const btn = clickPopup.getElement()?.querySelector('.mp-open') as HTMLButtonElement | null
-        if (btn) btn.onclick = () => { const id = p.accountId; clickPopup.remove(); actions.openAccount(id) }
+        actions.openFacility(f.properties!.accountId)
       })
       // Clicking a cluster drills into the territory it sits in (not a raw GIS cluster-expand),
       // so the prominent numbered bubbles behave like the rest of the territory.
