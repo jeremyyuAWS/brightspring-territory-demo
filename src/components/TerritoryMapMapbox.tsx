@@ -336,17 +336,11 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         const btn = clickPopup.getElement()?.querySelector('.mp-open') as HTMLButtonElement | null
         if (btn) btn.onclick = () => { const id = p.accountId; clickPopup.remove(); actions.openAccount(id) }
       })
-      map.on('click', 'clusters', async e => {
-        const f = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })[0]
-        if (!f) return
-        const center = (f.geometry as any).coordinates as [number, number]
-        const src = map.getSource('accounts') as any // v3 returns a Promise; older versions use a callback
-        try {
-          const zoom = await src.getClusterExpansionZoom(f.properties!.cluster_id)
-          map.easeTo({ center, zoom: (zoom ?? map.getZoom() + 1.5) + 0.3 })
-        } catch {
-          map.easeTo({ center, zoom: map.getZoom() + 1.6 })
-        }
+      // Clicking a cluster drills into the territory it sits in (not a raw GIS cluster-expand),
+      // so the prominent numbered bubbles behave like the rest of the territory.
+      map.on('click', 'clusters', e => {
+        const t = map.queryRenderedFeatures(e.point, { layers: ['territory-fill'] })[0]
+        if (t) actions.selectTerritory(t.properties!.territoryId)
       })
       // Rich cluster hover — an executive sees WHY a cluster matters, not just a count.
       const clusterPop = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '240px' })
