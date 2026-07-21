@@ -137,8 +137,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         style: 'mapbox://styles/mapbox/light-v11',
         center: RICHMOND_CENTER,
         zoom: 10.4,
-        pitch: 30, // gentle 3D
-        bearing: -6,
+        pitch: 0, // flat: what you see is what you click (predictable territory drill-down)
+        bearing: 0,
         cooperativeGestures: false,
       })
     } catch {
