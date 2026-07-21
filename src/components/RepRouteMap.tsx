@@ -14,9 +14,9 @@ export function RepRouteMap({ repId, selectedStop, onSelectStop }: { repId: stri
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return
-    const map = L.map(elRef.current, { zoomControl: true, attributionControl: true })
+    const map = L.map(elRef.current, { zoomControl: true, attributionControl: false }) // no provider labels in the customer-facing demo
     mapRef.current = map
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 }).addTo(map)
     const ro = new ResizeObserver(() => map.invalidateSize()); ro.observe(elRef.current)
     return () => { ro.disconnect(); map.remove(); mapRef.current = null }
   }, [])

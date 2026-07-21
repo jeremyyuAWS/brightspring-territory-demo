@@ -100,9 +100,9 @@ function ZipMap({ assign, selTerr, onToggle }: { assign: Record<string, string>;
   const mapRef = useRef<L.Map | null>(null)
   useEffect(() => {
     if (!elRef.current || mapRef.current) return
-    const map = L.map(elRef.current, { zoomControl: true })
+    const map = L.map(elRef.current, { zoomControl: true, attributionControl: false })
     mapRef.current = map
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 }).addTo(map)
     const all = BASE_CELLS.flatMap(c => c.ring.map(p => [p[1], p[0]] as [number, number]))
     map.fitBounds(L.latLngBounds(all), { padding: [12, 12] })
     const ro = new ResizeObserver(() => map.invalidateSize()); ro.observe(elRef.current)

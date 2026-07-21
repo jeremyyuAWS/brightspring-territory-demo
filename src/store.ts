@@ -140,7 +140,7 @@ function addAudit(e: Omit<AuditEntry, 'id' | 'ts'>) {
 
 // ---------- actions ----------
 export const actions = {
-  setTab(tab: TabKey) { set({ tab }) },
+  setTab(tab: TabKey) { set({ tab, undoLabel: null }) }, // dismiss the undo toast when navigating away
   openAccount(id: string | null) { set({ openAccountId: id, tab: id ? 'accounts' : state.tab }) },
   setFilter(patch: Partial<Filters>) { set({ filters: { ...state.filters, ...patch } }) },
   selectTerritory(id: string | null) {

@@ -53,11 +53,10 @@ export function TerritoryMapLeaflet() {
   // init once
   useEffect(() => {
     if (!elRef.current || mapRef.current) return
-    const map = L.map(elRef.current, { center: [RICHMOND_CENTER[1], RICHMOND_CENTER[0]], zoom: 11, zoomControl: true, attributionControl: true })
+    const map = L.map(elRef.current, { center: [RICHMOND_CENTER[1], RICHMOND_CENTER[0]], zoom: 11, zoomControl: true, attributionControl: false })
     mapRef.current = map
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
     }).addTo(map)
     map.fitBounds(territoryExtent(), { padding: [24, 24] })
 
