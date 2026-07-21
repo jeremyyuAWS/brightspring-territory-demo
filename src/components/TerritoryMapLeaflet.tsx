@@ -86,9 +86,10 @@ export function TerritoryMapLeaflet() {
       const t = territoryById(id)!
       const st = statusFor(t, applied)
       const m = applied ? t.optimized : t.baseline
-      let fillOpacity = 0.68
-      if (kpi === 'atRisk') fillOpacity = st === 'Healthy' ? 0.16 : 0.78
-      else if (selId) fillOpacity = id === selId ? 0.78 : 0.18
+      // light, elegant tint: soft fill + crisp colored outline (basemap stays readable)
+      let fillOpacity = 0.3
+      if (kpi === 'atRisk') fillOpacity = st === 'Healthy' ? 0.08 : 0.42
+      else if (selId) fillOpacity = id === selId ? 0.42 : 0.08
       let color = STATUS_HEX[st]
       if (kpi === 'conversion') {
         const inT = s.referrals.filter(r => r.territoryId === id)
@@ -96,7 +97,7 @@ export function TerritoryMapLeaflet() {
         color = conv >= 55 ? '#16a34a' : conv >= 40 ? '#65a30d' : conv >= 25 ? '#d99a22' : '#c74634'
         fillOpacity = 0.62
       }
-      layer.setStyle({ fillColor: color, fillOpacity, weight: id === selId ? 4 : 2.5, color: id === selId ? '#0f172a' : color, opacity: 1 })
+      layer.setStyle({ fillColor: color, fillOpacity, weight: id === selId ? 3 : 1.75, color: id === selId ? '#0f172a' : color, opacity: 0.9 })
       layer.bindTooltip(`<b>${t.name}</b><br/>${repById(t.repId)?.name} · ${st}<br/>coverage ${m.priorityCoveragePct}% · ${m.visitsCompleted}/${m.visitsTarget} visits`, { sticky: true })
     })
 
@@ -112,8 +113,8 @@ export function TerritoryMapLeaflet() {
       const emphasize = (coverageKpi && !covered && a.isPriority) || hlIds.has(a.id)
       const mk = L.circleMarker([a.lat, a.lng], {
         radius: radiusFor(a) + (emphasize ? 2 : 0),
-        fillColor: REL_HEX[a.relationshipStatus], fillOpacity: dim ? 0.25 : 0.92,
-        color: emphasize ? '#111827' : (covered ? freshHex(a) : '#dc2626'), weight: emphasize ? 3 : 2,
+        fillColor: REL_HEX[a.relationshipStatus], fillOpacity: dim ? 0.22 : 0.85,
+        color: emphasize ? '#111827' : (covered ? freshHex(a) : '#dc2626'), weight: emphasize ? 2.5 : 1.75,
       })
       mk.bindTooltip(`<b>${a.name}</b><br/>${a.priority} priority · ${covered ? 'covered' : 'uncovered'} · opp ${a.opportunityScore}`)
       const covLabel = covered ? 'Covered' : '<span style="color:#dc2626">Uncovered</span>'

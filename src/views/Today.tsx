@@ -60,6 +60,7 @@ export function Today() {
                     <div style={{ fontWeight: 700, color: cap > 100 ? 'var(--risk)' : 'inherit' }}>{cap}%</div>
                     <div className="muted" style={{ fontSize: 11 }}>capacity</div>
                   </div>
+                  <span className="rep-chevron" aria-hidden>›</span>
                 </div>
               )
             })}

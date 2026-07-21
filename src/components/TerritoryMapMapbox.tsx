@@ -331,15 +331,15 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     // territory fill: conversion choropleth, at-risk emphasis, selection dim, or base health
     if (kpi === 'conversion') {
       map.setPaintProperty('territory-fill', 'fill-color', conversionColorExpr(s.referrals))
-      map.setPaintProperty('territory-fill', 'fill-opacity', 0.6)
+      map.setPaintProperty('territory-fill', 'fill-opacity', 0.42)
     } else {
       map.setPaintProperty('territory-fill', 'fill-color', ['get', 'color'])
       if (kpi === 'atRisk') {
-        map.setPaintProperty('territory-fill', 'fill-opacity', ['match', ['get', 'status'], 'Healthy', 0.1, 0.62])
+        map.setPaintProperty('territory-fill', 'fill-opacity', ['match', ['get', 'status'], 'Healthy', 0.07, 0.42])
       } else if (selId) {
-        map.setPaintProperty('territory-fill', 'fill-opacity', ['case', ['==', ['get', 'territoryId'], selId], 0.56, 0.14])
+        map.setPaintProperty('territory-fill', 'fill-opacity', ['case', ['==', ['get', 'territoryId'], selId], 0.42, 0.09])
       } else {
-        map.setPaintProperty('territory-fill', 'fill-opacity', 0.34)
+        map.setPaintProperty('territory-fill', 'fill-opacity', 0.26)
       }
     }
 
