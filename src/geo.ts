@@ -112,6 +112,38 @@ export function routeLineFC(points: [number, number][]): GeoJSONFC {
   }
 }
 
+// ---- Territory Builder: synthetic ZIP-code cells over the market ----
+export interface ZipCell { zip: string; ring: [number, number][]; center: [number, number]; territoryId: string }
+
+export function zipCells(): ZipCell[] {
+  const labels = labelPoints()
+  const entries = Object.entries(labels) // [id, [lng,lat]]
+  const minLng = -77.60, maxLng = -77.32, minLat = 37.465, maxLat = 37.615
+  const cols = 7, rows = 5
+  const cw = (maxLng - minLng) / cols, ch = (maxLat - minLat) / rows
+  const cells: ZipCell[] = []
+  let n = 10
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const l0 = minLng + c * cw, l1 = l0 + cw, b0 = minLat + r * ch, b1 = b0 + ch
+      const center: [number, number] = [(l0 + l1) / 2, (b0 + b1) / 2]
+      // nearest territory label (with a lng-distance stretch so regions look natural)
+      let best = entries[0][0], bd = Infinity
+      for (const [id, [lng, lat]] of entries) {
+        const dx = (center[0] - lng) * 0.8, dy = center[1] - lat
+        const d = dx * dx + dy * dy
+        if (d < bd) { bd = d; best = id }
+      }
+      cells.push({
+        zip: `232${n++}`,
+        ring: [[l0, b0], [l1, b0], [l1, b1], [l0, b1], [l0, b0]],
+        center, territoryId: best,
+      })
+    }
+  }
+  return cells
+}
+
 // ---- §13 referral flow map: source → service location ----
 const FLOW_STATUS_COLOR: Record<string, string> = { admitted: '#16a34a', pending: '#d99a22', lost: '#c74634' }
 export interface ReferralFlow { name: string; from: [number, number]; to: [number, number]; volume: number; status: 'admitted' | 'pending' | 'lost' }

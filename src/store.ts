@@ -291,6 +291,10 @@ export const actions = {
     addAudit({ actor: 'Field rep (AI)', action: `Added ${name} to today's route`, detail: 'Simulated', after: note })
     set({ tasks: [task, ...state.tasks], undoLabel: 'Undo add stop' })
   },
+  saveTerritoryEdit(territoryName: string, before: string, after: string) {
+    addAudit({ actor: 'Demo Manager', action: `Saved territory edit — ${territoryName}`, detail: 'Simulated · ZIP reassignment', before, after })
+    set({ undoLabel: 'Undo territory edit' })
+  },
   optimizeMyDay() {
     addAudit({ actor: 'Field rep (AI)', action: 'Optimized my day', detail: 'Simulated', after: 'Route reordered; 12 min drive saved; home-by preserved' })
     set({ undoLabel: 'Undo optimize day' })

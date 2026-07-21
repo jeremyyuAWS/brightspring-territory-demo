@@ -8,6 +8,7 @@ import { marketKpis, territoryRows, insights, territoryById, funnel, referralCon
 import type { MarketKpis } from '../selectors'
 import { StatusBadge, AnimatedNumber } from '../ui'
 import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
+import { ZipTerritoryBuilder } from '../components/ZipTerritoryBuilder'
 
 const KPI_LABEL: Record<string, string> = {
   coverage: 'covered vs uncovered priority accounts',
@@ -19,6 +20,7 @@ const KPI_LABEL: Record<string, string> = {
 export function Home() {
   const s = useStore()
   const [compareOpen, setCompareOpen] = useState(false)
+  const [zipBuilder, setZipBuilder] = useState(false)
   const kpis = marketKpis(s)
   const rows = territoryRows(s)
   const ins = insights(s)
@@ -46,6 +48,7 @@ export function Home() {
             <div className="phead">
               <h3>Territory health — Richmond market</h3>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn sm" onClick={() => setZipBuilder(true)}>✎ Edit territories</button>
                 <button className="btn primary sm" onClick={() => actions.openBuilder()}>◆ Optimize territories</button>
               </div>
             </div>
@@ -120,6 +123,7 @@ export function Home() {
 
       {s.builderOpen && <TerritoryBuilder />}
       {compareOpen && <CompareReps onClose={() => setCompareOpen(false)} />}
+      {zipBuilder && <ZipTerritoryBuilder onClose={() => setZipBuilder(false)} />}
     </div>
   )
 }
