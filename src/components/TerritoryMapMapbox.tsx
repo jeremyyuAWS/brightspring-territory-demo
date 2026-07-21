@@ -28,11 +28,18 @@ function freshHex(a: Account) { return a.visitFresh === 'fresh' ? '#1f2937' : a.
 function radiusFor(a: Account) { return a.opportunityBand === 'high' ? 9 : a.opportunityBand === 'medium' ? 7 : 5 }
 
 // ---- GeoJSON builders (depend on applied state) ----
+// Territory features carry TWO visual dimensions: fill = health (status), outline = rep identity.
 function territoriesFC(applied: boolean): GeoJSONFC {
   return territoriesGeoJSON(id => {
     const t = territoryById(id)!
     const status = statusFor(t, applied)
-    return { territoryName: t.name, status, color: STATUS_HEX[status] }
+    const m = applied ? t.optimized : t.baseline
+    return {
+      territoryName: t.name, status, color: STATUS_HEX[status],
+      repColor: repById(t.repId)?.color ?? '#334155',
+      repName: repById(t.repId)?.name ?? '',
+      coverage: m.priorityCoveragePct,
+    }
   })
 }
 function territoryLabelsFC(applied: boolean): GeoJSONFC {
@@ -40,12 +47,16 @@ function territoryLabelsFC(applied: boolean): GeoJSONFC {
   return {
     type: 'FeatureCollection',
     features: TERRITORIES.map(t => {
-      const status = statusFor(t, applied)
-      const surname = (repById(t.repId)?.name ?? '').split(' ').slice(-1)[0]
+      const m = applied ? t.optimized : t.baseline
+      const rep = repById(t.repId)?.name ?? ''
       return {
         type: 'Feature' as const,
         geometry: { type: 'Point', coordinates: labels[t.id] },
-        properties: { territoryId: t.id, label: `${t.short}\n${surname} · ${status}` },
+        properties: {
+          territoryId: t.id,
+          name: t.name,
+          detail: `${rep} · ${m.priorityCoveragePct}% coverage`,
+        },
       }
     }),
   }
@@ -63,6 +74,9 @@ function accountsFC(list: Account[], applied: boolean): GeoJSONFC {
           relColor: REL_HEX[a.relationshipStatus], strokeColor: covered ? freshHex(a) : '#dc2626',
           radius: radiusFor(a), opp: a.opportunityScore, referralActive: a.referralActive,
           facilityType: a.facilityType, rep: repById(effectiveRepId(a, applied))?.name ?? '',
+          rel: a.relationshipStatus, growth: a.relationshipStatus === 'growth' || a.whitespace.length > 0 ? 1 : 0,
+          // simulated pipeline value (deterministic from opportunity score)
+          pipeline: Math.round(a.opportunityScore * 3.2) * 1000,
         },
       }
     }),
@@ -83,6 +97,16 @@ function routeForRep(repId: string, applied: boolean): [number, number][] {
 
 interface Layers { uncovered: boolean; route: boolean; isochrone: boolean; heatmap: boolean; referralFlow: boolean }
 
+// Four executive preset views instead of a long checkbox list. Each preset is a
+// curated combination of overlays that tells one story.
+type Preset = 'coverage' | 'growth' | 'referrals' | 'today'
+const PRESETS: { id: Preset; label: string; hint: string; layers: Layers }[] = [
+  { id: 'coverage', label: 'Coverage', hint: 'Territory health, priority accounts & capacity', layers: { uncovered: true, route: false, isochrone: false, heatmap: false, referralFlow: false } },
+  { id: 'growth', label: 'Growth', hint: 'Opportunity heatmap & whitespace', layers: { uncovered: false, route: false, isochrone: false, heatmap: true, referralFlow: false } },
+  { id: 'referrals', label: 'Referrals', hint: 'Referral sources, flows & conversion', layers: { uncovered: false, route: false, isochrone: false, heatmap: false, referralFlow: true } },
+  { id: 'today', label: 'Today', hint: 'Rep routes & drive-time coverage', layers: { uncovered: false, route: true, isochrone: true, heatmap: false, referralFlow: false } },
+]
+
 export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: () => void }) {
   const s = useStore()
   const applied = s.optimizationApplied
@@ -90,7 +114,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [layers, setLayers] = useState<Layers>({ uncovered: false, route: false, isochrone: false, heatmap: false, referralFlow: false })
+  const [preset, setPreset] = useState<Preset>('coverage')
+  const [layers, setLayers] = useState<Layers>(PRESETS[0].layers)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const appliedRef = useRef(applied)
   appliedRef.current = applied
@@ -153,9 +178,10 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addLayer({ id: 'iso-line', type: 'line', source: 'iso', paint: { 'line-color': '#0d5c63', 'line-width': 1, 'line-opacity': 0.5 } })
 
       // territory polygons (smooth recolor/opacity transitions for the optimize animation)
-      map.addLayer({ id: 'territory-fill', type: 'fill', source: 'territories', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.34, 'fill-color-transition': { duration: 600 } as any, 'fill-opacity-transition': { duration: 600 } as any } })
-      map.addLayer({ id: 'territory-outline', type: 'line', source: 'territories', paint: { 'line-color': '#334155', 'line-width': 1.5 } })
-      map.addLayer({ id: 'territory-selected', type: 'line', source: 'territories', filter: ['==', ['get', 'territoryId'], '__none__'], paint: { 'line-color': '#0f172a', 'line-width': 3 } })
+      // FILL = health (subtle). OUTLINE = rep identity (each rep a distinct color).
+      map.addLayer({ id: 'territory-fill', type: 'fill', source: 'territories', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.22, 'fill-color-transition': { duration: 600 } as any, 'fill-opacity-transition': { duration: 600 } as any } })
+      map.addLayer({ id: 'territory-outline', type: 'line', source: 'territories', paint: { 'line-color': ['get', 'repColor'], 'line-width': 2.4, 'line-opacity': 0.9, 'line-width-transition': { duration: 400 } as any } })
+      map.addLayer({ id: 'territory-selected', type: 'line', source: 'territories', filter: ['==', ['get', 'territoryId'], '__none__'], paint: { 'line-color': ['get', 'repColor'], 'line-width': 4.5 } })
 
       // route line
       map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#1d4ed8', 'line-width': 2.5, 'line-dasharray': [2, 1] } })
@@ -216,11 +242,14 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         paint: { 'circle-radius': ['+', ['get', 'radius'], 4], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#dc2626', 'circle-stroke-width': 3 },
       })
 
-      // territory labels
+      // territory labels — name always; rep + coverage detail appears from zoom 11 up
       map.addLayer({
         id: 'territory-label', type: 'symbol', source: 'territory-labels',
-        layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'], 'text-line-height': 1.2, 'text-allow-overlap': false },
-        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
+        layout: {
+          'text-field': ['step', ['zoom'], ['get', 'name'], 11, ['format', ['get', 'name'], { 'font-scale': 1.0 }, '\n', {}, ['get', 'detail'], { 'font-scale': 0.82 }]],
+          'text-size': 13, 'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'], 'text-line-height': 1.3, 'text-allow-overlap': false,
+        },
+        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.8 },
       })
 
       // interactions
@@ -255,6 +284,41 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         } catch {
           map.easeTo({ center, zoom: map.getZoom() + 1.6 })
         }
+      })
+      // Rich cluster hover — an executive sees WHY a cluster matters, not just a count.
+      const clusterPop = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '240px' })
+      const leavesOf = (src: any, id: number, count: number): Promise<any[]> =>
+        new Promise(resolve => {
+          try {
+            const p = src.getClusterLeaves(id, count, 0, (err: any, leaves: any[]) => resolve(err ? [] : leaves))
+            if (p && typeof p.then === 'function') p.then((l: any[]) => resolve(l ?? [])).catch(() => resolve([]))
+          } catch { resolve([]) }
+        })
+      map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; clusterPop.remove() })
+      map.on('mousemove', 'clusters', async e => {
+        const f = e.features?.[0]; if (!f) return
+        const count = f.properties!.point_count as number
+        const src = map.getSource('accounts') as any
+        const leaves = await leavesOf(src, f.properties!.cluster_id, count)
+        if (!leaves.length) return
+        const pr = (k: string) => leaves.filter(l => l.properties[k]).length
+        const priority = leaves.filter(l => l.properties.isPriority).length
+        const uncovered = leaves.filter(l => !l.properties.covered).length
+        const growth = leaves.filter(l => l.properties.growth).length
+        const referrals = pr('referralActive')
+        const pipeline = leaves.reduce((sum, l) => sum + (l.properties.pipeline || 0), 0)
+        const money = pipeline >= 1e6 ? `$${(pipeline / 1e6).toFixed(1)}M` : `$${Math.round(pipeline / 1000)}K`
+        const row = (v: number, label: string, cls = '') => v ? `<div class="mp-cl-row ${cls}"><b>${v}</b> ${label}</div>` : ''
+        clusterPop.setLngLat((f.geometry as any).coordinates).setHTML(
+          `<div class="mp-cl"><div class="mp-cl-h">${count} accounts</div>`
+          + row(priority, 'priority accounts')
+          + row(uncovered, 'uncovered', 'warn')
+          + row(growth, 'growth opportunities')
+          + row(referrals, 'active referrals')
+          + `<div class="mp-cl-pipe">${money} simulated pipeline</div>`
+          + `<div class="mp-cl-hint">Click to expand</div></div>`,
+        ).addTo(map)
       })
 
       // hover popovers
@@ -417,29 +481,28 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
 
   if (failed) return null // parent will show fallback
 
-  const focused = repById(focusRep(s.filters.repId, s.selectedTerritoryId))
-
   return (
     <div className="map-wrap" style={{ position: 'relative' }}>
       <div ref={containerRef} style={{ height: 460, width: '100%' }} />
-      <div className="layers-control">
-        <div className="lc-title">Layers</div>
-        <label><input type="checkbox" checked={layers.uncovered} onChange={e => setLayers(l => ({ ...l, uncovered: e.target.checked }))} /> Uncovered priority</label>
-        <label><input type="checkbox" checked={layers.route} onChange={e => setLayers(l => ({ ...l, route: e.target.checked }))} /> Rep route <span className="muted">({focused?.initials})</span></label>
-        <label><input type="checkbox" checked={layers.isochrone} onChange={e => setLayers(l => ({ ...l, isochrone: e.target.checked }))} /> Drive-time area</label>
-        <label><input type="checkbox" checked={layers.heatmap} onChange={e => setLayers(l => ({ ...l, heatmap: e.target.checked }))} /> Opportunity heatmap</label>
-        <label><input type="checkbox" checked={layers.referralFlow} onChange={e => setLayers(l => ({ ...l, referralFlow: e.target.checked }))} /> Referral flow</label>
-        <button className="lc-reset" onClick={() => { mapRef.current?.fitBounds(RICHMOND_BOUNDS, { padding: 30 }); actions.clearSelection() }}>Reset to market</button>
+      <div className="map-presets" role="tablist" aria-label="Map view">
+        {PRESETS.map(p => (
+          <button key={p.id} role="tab" aria-selected={preset === p.id}
+            className={'preset-tab' + (preset === p.id ? ' on' : '')}
+            title={p.hint}
+            onClick={() => { setPreset(p.id); setLayers(p.layers) }}>{p.label}</button>
+        ))}
+        <span className="preset-hint">{PRESETS.find(p => p.id === preset)!.hint}</span>
       </div>
       <div className="map-legend">
+        <span className="lg lg-head">Territory fill</span>
         <span className="lg"><span className="legend-sw" style={{ background: '#2E7D5B' }} /> Healthy</span>
         <span className="lg"><span className="legend-sw" style={{ background: '#D99A22' }} /> Watch</span>
         <span className="lg"><span className="legend-sw" style={{ background: '#C74634' }} /> At Risk</span>
-        <span className="lg"><span className="legend-dot" style={{ width: 11, height: 11, background: '#2563eb' }} /> Current</span>
-        <span className="lg"><span className="legend-dot" style={{ width: 11, height: 11, background: '#0d9488' }} /> Growth</span>
-        <span className="lg"><span className="legend-dot" style={{ width: 11, height: 11, background: '#7c3aed' }} /> Prospect</span>
-        <span className="lg"><span className="legend-dot" style={{ width: 11, height: 11, background: '#dc2626' }} /> At-risk / uncovered</span>
-        <span className="lg muted">size = opportunity · outline = freshness · clusters group nearby accounts</span>
+        <span className="lg lg-head" style={{ marginLeft: 6 }}>Outline = rep</span>
+        {REPS.filter(r => r.territoryId).map(r => (
+          <span className="lg" key={r.id}><span className="legend-line" style={{ background: r.color }} /> {r.name.split(' ')[0]}</span>
+        ))}
+        <span className="lg muted">dot size = opportunity · click a territory to drill in</span>
       </div>
     </div>
   )
