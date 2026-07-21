@@ -34,6 +34,9 @@ export interface DemoState {
   extraActivities: Activity[]
   monthlyPlanApplied: boolean
   rescheduleApplied: boolean
+  scheduleFixes: Record<string, string> // repId -> fixId
+  planStrategy: string | null // §4 applied plan-optimization strategy
+  calendarSynced: boolean
 }
 
 const SEED_VERSION = 'seed-v1'
@@ -68,11 +71,14 @@ function freshState(): DemoState {
     extraActivities: [],
     monthlyPlanApplied: false,
     rescheduleApplied: false,
+    scheduleFixes: {},
+    planStrategy: null,
+    calendarSynced: false,
   }
 }
 
 // ---- undo memory (kept outside serialized state) ----
-type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied'>
+type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied' | 'planStrategy'>
 let undoSnapshot: UndoSlice | null = null
 function snapUndo(): UndoSlice {
   return {
@@ -82,6 +88,7 @@ function snapUndo(): UndoSlice {
     extraActivities: state.extraActivities.map(a => ({ ...a })),
     monthlyPlanApplied: state.monthlyPlanApplied,
     rescheduleApplied: state.rescheduleApplied,
+    planStrategy: state.planStrategy,
   }
 }
 
@@ -248,6 +255,26 @@ export const actions = {
     const task: FollowUpTask = { id: `tk-rec-${referralId}`, title: `Recovery: ${action}`, accountName: source, dueDate: '2026-07-23', owner: 'Jordan Ellis', source: 'Referral recovery', done: false }
     addAudit({ actor: 'Demo Manager', action: `Recovery action queued for ${referralId}`, detail: 'Simulated', after: action })
     set({ tasks: [task, ...state.tasks], undoLabel: `Undo recovery` })
+  },
+
+  applyScheduleFix(repId: string, fixId: string, label: string, before: string, after: string) {
+    addAudit({ actor: 'Jordan Ellis (AI)', action: 'Applied schedule fix', detail: `Simulated · ${label}`, before: `Home ${before}`, after: `Home ${after}` })
+    set({ scheduleFixes: { ...state.scheduleFixes, [repId]: fixId }, undoLabel: 'Undo schedule fix' })
+  },
+  clearScheduleFix(repId: string) {
+    const next = { ...state.scheduleFixes }; delete next[repId]
+    set({ scheduleFixes: next })
+  },
+
+  applyPlanStrategy(strategy: string, summary: string) {
+    undoSnapshot = snapUndo()
+    addAudit({ actor: 'Demo Manager (AI plan)', action: `Applied plan optimization — ${strategy}`, detail: 'Simulated', after: summary })
+    set({ planStrategy: strategy, monthlyPlanApplied: true, undoLabel: 'Undo plan optimization' })
+  },
+
+  simulateCalendarSync() {
+    addAudit({ actor: 'Demo Manager', action: 'Calendar sync (Google / M365)', detail: 'Demo simulation · busy blocks imported, personal time protected' })
+    set({ calendarSynced: true })
   },
 
   addSourceToPlan(sourceName: string, winBack: string) {
