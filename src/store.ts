@@ -37,6 +37,7 @@ export interface DemoState {
   scheduleFixes: Record<string, string> // repId -> fixId
   planStrategy: string | null // §4 applied plan-optimization strategy
   calendarSynced: boolean
+  mapProvider: 'leaflet' | 'mapbox'
 }
 
 const SEED_VERSION = 'seed-v1'
@@ -74,6 +75,7 @@ function freshState(): DemoState {
     scheduleFixes: {},
     planStrategy: null,
     calendarSynced: false,
+    mapProvider: 'leaflet',
   }
 }
 
@@ -271,6 +273,8 @@ export const actions = {
     addAudit({ actor: 'Demo Manager (AI plan)', action: `Applied plan optimization — ${strategy}`, detail: 'Simulated', after: summary })
     set({ planStrategy: strategy, monthlyPlanApplied: true, undoLabel: 'Undo plan optimization' })
   },
+
+  setMapProvider(p: 'leaflet' | 'mapbox') { set({ mapProvider: p }) },
 
   simulateCalendarSync() {
     addAudit({ actor: 'Demo Manager', action: 'Calendar sync (Google / M365)', detail: 'Demo simulation · busy blocks imported, personal time protected' })

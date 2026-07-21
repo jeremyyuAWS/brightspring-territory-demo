@@ -103,7 +103,7 @@ h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 /* ---------- map ---------- */
 .map-wrap { position: relative; }
-.map-wrap svg { display: block; width: 100%; height: auto; background: linear-gradient(180deg,#eef4f5,#e6eef0); }
+.map-wrap > svg { display: block; width: 100%; height: auto; background: linear-gradient(180deg,#eef4f5,#e6eef0); }
 .terr-poly { stroke: #fff; stroke-width: 2; cursor: pointer; transition: opacity .15s, filter .15s; }
 .terr-poly:hover { filter: brightness(1.06); }
 .terr-poly.dim { opacity: .28; }
@@ -383,6 +383,24 @@ th.th-sort:hover { color: var(--brand); }
 .cp-input input { flex: 1; border: 1px solid var(--border-strong); border-radius: 999px; padding: 9px 14px; font-size: 13px; }
 .cp-mic { border: 1px solid var(--border-strong); background: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 15px; flex: none; }
 .cp-mic:hover { background: var(--surface-2); }
+
+/* ---------- leaflet + provider toggle ---------- */
+.map-wrap { position: relative; z-index: 0; } /* contain Leaflet controls below drawers */
+.map-provider { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.map-provider .mp-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); font-weight: 700; }
+.leaflet-container { font-family: var(--font); background: #eef4f5; }
+.leaflet-attribution-flag { display: none !important; } /* oversized default flag icon with our CSS reset */
+.leaflet-control-attribution { font-size: 10px; }
+.lf-cluster-wrap { background: transparent; }
+.lf-cluster { width: 34px; height: 34px; border-radius: 50%; background: rgba(13,92,99,.9); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.leaflet-popup-content .lf-pop { min-width: 176px; color: var(--text); }
+.lf-pop b { font-size: 13.5px; display: block; }
+.lf-pop .lf-sub { font-size: 11.5px; color: var(--text-3); margin-bottom: 6px; }
+.lf-pop .lf-kv { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; border-top: 1px solid var(--border); }
+.lf-pop .lf-kv span { color: var(--text-3); }
+.lf-pop .lf-tag { margin-top: 6px; font-size: 11px; font-weight: 700; color: #0d9488; }
+.lf-pop .lf-open { margin-top: 8px; width: 100%; background: var(--brand); color: #fff; border: none; border-radius: 7px; padding: 6px 10px; font-weight: 650; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.lf-pop .lf-open:hover { background: var(--brand-2); }
 
 /* ---------- mapbox ---------- */
 .layers-control { position: absolute; top: 12px; left: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 12.5px; z-index: 2; min-width: 168px; }
