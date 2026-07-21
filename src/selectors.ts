@@ -152,6 +152,23 @@ export const NEGATIVE_STAGES: Referral['stage'][] = ['Declined', 'Ineligible', '
 export function funnel(referrals: Referral[]) {
   return FUNNEL_ORDER.map(stage => ({ stage, count: referrals.filter(r => r.stage === stage).length }))
 }
+// Cohort funnel: how far each referral progressed. count[i] = referrals that reached stage i or beyond,
+// so values only decrease — an executive-readable funnel rather than current-stage inventory.
+const COHORT_LABELS: Record<string, string> = {
+  'Received': 'Received', 'Contact Attempted': 'Contacted', 'Met Patient/Family': 'Patient/family met',
+  'Evaluating': 'Evaluating', 'Accepted': 'Accepted', 'Admitted': 'Admitted',
+}
+export function cohortFunnel(referrals: Referral[]) {
+  const reached = (r: Referral) => {
+    const i = FUNNEL_ORDER.indexOf(r.stage)
+    if (i >= 0) return i
+    return 1 // negative outcomes (declined/ineligible/lost) were received & contacted before dropping out
+  }
+  return FUNNEL_ORDER.map((stage, i) => ({
+    stage, label: COHORT_LABELS[stage] ?? stage,
+    count: referrals.filter(r => reached(r) >= i).length,
+  }))
+}
 export function referralsByTerritory(referrals: Referral[]) {
   return TERRITORIES.map(t => ({
     territory: t,

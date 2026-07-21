@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useStore, actions } from '../store'
-import { REPS } from '../seed'
+import { REPS, ACCOUNTS } from '../seed'
 import { TerritoryMapPanel } from '../components/TerritoryMapPanel'
 import { TerritoryBuilder } from '../components/TerritoryBuilder'
 import { CompareReps } from '../components/CompareReps'
-import { marketKpis, territoryRows, insights, territoryById, funnel, referralConversion } from '../selectors'
+import { marketKpis, territoryRows, insights, territoryById, cohortFunnel } from '../selectors'
 import type { MarketKpis } from '../selectors'
 import { StatusBadge, AnimatedNumber } from '../ui'
 import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
@@ -53,13 +53,6 @@ export function Home() {
       <div className="home-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="panel">
-            <div className="phead">
-              <h3>Territory health — Richmond market</h3>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn sm" onClick={() => actions.openZipBuilder()}>✎ Edit territories</button>
-                <button className="btn primary sm" onClick={() => actions.openBuilder()}>◆ Optimize territories</button>
-              </div>
-            </div>
             <TerritoryMapPanel />
           </div>
 
@@ -77,8 +70,8 @@ export function Home() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="panel">
             <div className="phead">
-              <h3>Manager insights</h3>
-              <span className="badge sim">◆ AI · templated</span>
+              <h3>Management insights</h3>
+              <span className="badge sim">◆ AI-assisted</span>
             </div>
             <div className="pbody">
               {ins.map(i => (
@@ -212,25 +205,30 @@ function KpiCards({ k, applied }: { k: MarketKpis; applied: boolean }) {
 
 function ReferralFunnelCard() {
   const s = useStore()
-  const f = funnel(s.referrals)
+  const f = cohortFunnel(s.referrals)
   const max = Math.max(...f.map(x => x.count), 1)
-  const conv = referralConversion(s.referrals)
+  const received = f[0]?.count ?? 0
+  const admitted = f[f.length - 1]?.count ?? 0
+  const conv = received ? Math.round((admitted / received) * 100) : 0
   return (
     <div className="panel">
       <div className="phead">
-        <h3>Referral funnel</h3>
-        <span className="badge sim" style={{ fontSize: 11 }}>◆ {conv}% conversion</span>
+        <div>
+          <h3>Referrals by cohort</h3>
+          <span className="muted" style={{ fontSize: 11.5 }}>Received Jul 1–22 · {conv}% reach admission</span>
+        </div>
+        <span className="badge sim" style={{ fontSize: 11 }}>◆ {admitted} of {received}</span>
       </div>
       <div className="pbody">
         <div className="funnel">
           {f.map(x => (
             <div className="fb" key={x.stage}>
-              <span className="lab" style={{ width: 128 }}>{x.stage}</span>
+              <span className="lab" style={{ width: 128 }}>{x.label}</span>
               <span className="track"><span className="fill" style={{ width: `${Math.max(7, (x.count / max) * 100)}%` }}>{x.count}</span></span>
             </div>
           ))}
         </div>
-        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Live across all synthetic referrals — updates as dispositions change. Click the “Referral conversion” KPI to color territories by conversion.</p>
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Cohort of referrals received this period, tracked to their furthest stage. Click the “Referral conversion” KPI to color territories by conversion.</p>
       </div>
     </div>
   )
@@ -247,6 +245,7 @@ const SORT_VAL: Record<SortKey, (r: ReturnType<typeof territoryRows>[number]) =>
 function CoverageTable({ rows }: { rows: ReturnType<typeof territoryRows> }) {
   const s = useStore()
   const [q, setQ] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'score', dir: 1 })
   const clickSort = (key: SortKey) => setSort(p => p.key === key ? { key, dir: (p.dir * -1) as 1 | -1 } : { key, dir: -1 })
 
@@ -267,31 +266,92 @@ function CoverageTable({ rows }: { rows: ReturnType<typeof territoryRows> }) {
       <table className="data">
         <thead>
           <tr>
+            <th className="th-sort" style={{ width: 22 }} aria-label="expand" />
             <H k="name" label="Territory" /><H k="rep" label="Rep" /><H k="accts" label="Accts" num /><H k="coverage" label="Priority cov." num />
             <H k="visits" label="Visits / target" num /><H k="referrals" label="Referrals" num /><H k="conv" label="Conv." num />
             <H k="drive" label="Drive hrs" num /><H k="capacity" label="Capacity" num /><H k="score" label="Score" num /><th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {view.length === 0 && <tr><td colSpan={11} className="empty">No territories match.</td></tr>}
-          {view.map(r => (
-            <tr key={r.territory.id} className={s.selectedTerritoryId === r.territory.id ? 'sel' : ''}
-              onClick={() => actions.selectTerritory(r.territory.id)}>
-              <td><span className="terr-dot" style={{ background: r.territory.color }} />{r.territory.name}</td>
-              <td>{r.repName}</td>
-              <td className="num">{r.metrics.accountCount}</td>
-              <td className="num">{r.metrics.priorityCoveragePct}%</td>
-              <td className="num">{r.metrics.visitsCompleted}/{r.metrics.visitsTarget}</td>
-              <td className="num">{r.metrics.referrals}</td>
-              <td className="num">{Math.round((r.metrics.visitsCompleted / r.metrics.visitsTarget) * 100)}%</td>
-              <td className="num">{r.metrics.driveHrs}</td>
-              <td className="num" style={{ color: r.metrics.capacityPct > 100 ? 'var(--risk)' : 'inherit', fontWeight: r.metrics.capacityPct > 100 ? 700 : 400 }}>{r.metrics.capacityPct}%</td>
-              <td className="num" style={{ fontWeight: 700 }}>{r.score}</td>
-              <td><StatusBadge status={r.status} /></td>
-            </tr>
-          ))}
+          {view.length === 0 && <tr><td colSpan={12} className="empty">No territories match.</td></tr>}
+          {view.map(r => {
+            const isOpen = expanded === r.territory.id
+            return (
+              <ScoreRowGroup key={r.territory.id} r={r} isOpen={isOpen} selected={s.selectedTerritoryId === r.territory.id}
+                onToggle={() => setExpanded(isOpen ? null : r.territory.id)}
+                onSelect={() => actions.selectTerritory(r.territory.id)} />
+            )
+          })}
         </tbody>
       </table>
     </div>
+  )
+}
+
+function ScoreRowGroup({ r, isOpen, selected, onToggle, onSelect }: {
+  r: ReturnType<typeof territoryRows>[number]; isOpen: boolean; selected: boolean; onToggle: () => void; onSelect: () => void
+}) {
+  const tid = r.territory.id
+  const accts = ACCOUNTS.filter(a => a.territoryId === tid)
+  const uncoveredPriority = accts.filter(a => a.isPriority && !a.covered)
+  const growth = accts.filter(a => a.whitespace && a.whitespace.length > 0).sort((a, b) => b.opportunityScore - a.opportunityScore).slice(0, 3)
+  const intervention = r.status === 'At Risk'
+    ? `Move ${Math.min(2, uncoveredPriority.length || 2)} accounts and one follow-up to adjacent reps, then re-run the optimizer.`
+    : r.status === 'Watch'
+      ? 'Rebalance one account to a rep with headroom before it slips to At Risk.'
+      : 'On track — apply spare capacity to nearby growth opportunities.'
+  const openAcct = (id: string) => (e: React.MouseEvent) => { e.stopPropagation(); actions.openAccount(id) }
+  return (
+    <>
+      <tr className={selected ? 'sel' : ''} onClick={onSelect}>
+        <td className="num" style={{ paddingRight: 0 }}>
+          <button className={'row-exp' + (isOpen ? ' open' : '')} onClick={e => { e.stopPropagation(); onToggle() }} aria-label="expand">›</button>
+        </td>
+        <td><span className="terr-dot" style={{ background: r.territory.color }} />{r.territory.name}</td>
+        <td>{r.repName}</td>
+        <td className="num">{r.metrics.accountCount}</td>
+        <td className="num">{r.metrics.priorityCoveragePct}%</td>
+        <td className="num">{r.metrics.visitsCompleted}/{r.metrics.visitsTarget}</td>
+        <td className="num">{r.metrics.referrals}</td>
+        <td className="num">{Math.round((r.metrics.visitsCompleted / r.metrics.visitsTarget) * 100)}%</td>
+        <td className="num">{r.metrics.driveHrs}</td>
+        <td className="num" style={{ color: r.metrics.capacityPct > 100 ? 'var(--risk)' : 'inherit', fontWeight: r.metrics.capacityPct > 100 ? 700 : 400 }}>{r.metrics.capacityPct}%</td>
+        <td className="num" style={{ fontWeight: 700 }}>{r.score}</td>
+        <td><StatusBadge status={r.status} /></td>
+      </tr>
+      {isOpen && (
+        <tr className="row-detail">
+          <td colSpan={12}>
+            <div className="rd-grid">
+              <div className="rd-col">
+                <div className="rd-h">Uncovered priority ({uncoveredPriority.length})</div>
+                {uncoveredPriority.length === 0 ? <div className="rd-empty">All priority accounts covered.</div>
+                  : uncoveredPriority.slice(0, 5).map(a => (
+                    <button key={a.id} className="rd-chip risk" onClick={openAcct(a.id)}>{a.name} →</button>
+                  ))}
+              </div>
+              <div className="rd-col">
+                <div className="rd-h">Top growth opportunities</div>
+                {growth.length === 0 ? <div className="rd-empty">No open whitespace.</div>
+                  : growth.map(a => (
+                    <button key={a.id} className="rd-chip" onClick={openAcct(a.id)}>{a.name} · {a.whitespace[0]} →</button>
+                  ))}
+              </div>
+              <div className="rd-col">
+                <div className="rd-h">Rep workload</div>
+                <div className="rd-kv"><span>Capacity</span><b style={{ color: r.metrics.capacityPct > 100 ? 'var(--risk)' : 'inherit' }}>{r.metrics.capacityPct}%</b></div>
+                <div className="rd-kv"><span>Drive burden</span><b>{r.metrics.driveHrs} hrs/wk</b></div>
+                <div className="rd-kv"><span>Active referrals</span><b>{r.metrics.referrals}</b></div>
+              </div>
+              <div className="rd-col rd-action">
+                <div className="rd-h">Recommended intervention</div>
+                <p>{intervention}</p>
+                <button className="btn sm primary" onClick={e => { e.stopPropagation(); actions.setTab('plan') }}>Open Plan →</button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }

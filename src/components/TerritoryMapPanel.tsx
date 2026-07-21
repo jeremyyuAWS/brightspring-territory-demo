@@ -1,4 +1,5 @@
 import { Component, Suspense, lazy, useState, type ReactNode } from 'react'
+import { actions } from '../store'
 import { TerritoryMapLeaflet } from './TerritoryMapLeaflet'
 
 // Lazy so mapbox-gl (~1.5 MB) only downloads when the map mounts.
@@ -34,12 +35,18 @@ export function TerritoryMapPanel() {
   return (
     <div>
       <div className="map-titlebar">
-        <span className="map-title">Territory Intelligence — Richmond Market</span>
-        <span className="map-sub">CRM · referrals · coverage · capacity in one view</span>
+        <div className="map-titletext">
+          <span className="map-title">Territory Intelligence — Richmond Market</span>
+          <span className="map-sub">Current Month · CRM, referrals, coverage and capacity</span>
+        </div>
+        <div className="map-titleactions">
+          <button className="btn sm" onClick={() => actions.openZipBuilder()}>✎ Edit territories</button>
+          <button className="btn primary sm" onClick={() => actions.openBuilder()}>◆ Optimize territories</button>
+        </div>
       </div>
       {useMapbox ? (
         <MapErrorBoundary fallback={leafletFallback}>
-          <Suspense fallback={<div style={{ height: 460, display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>Loading map…</div>}>
+          <Suspense fallback={<div style={{ height: 560, display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>Loading map…</div>}>
             <TerritoryMapMapbox token={TOKEN!} onFail={() => setFailed(true)} />
           </Suspense>
         </MapErrorBoundary>

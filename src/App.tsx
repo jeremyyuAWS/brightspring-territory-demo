@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, actions, type TabKey } from './store'
 import { Home } from './views/Home'
 import { Plan } from './views/Plan'
@@ -100,15 +100,34 @@ function ToastHost() {
       </div>,
     )
   }
-  if (s.undoLabel) {
-    toasts.push(
-      <div className="toast" key="undo">
-        <span>◆</span>
-        <span className="grow">Simulation applied. You can reverse the last action.</span>
-        <button className="tbtn" onClick={() => actions.undo()}>{s.undoLabel}</button>
-      </div>,
-    )
-  }
+  if (s.undoLabel) toasts.push(<UndoToast key="undo" label={s.undoLabel} />)
   if (!toasts.length) return null
   return <div className="toast-wrap">{toasts}</div>
+}
+
+// Big toast for ~5s, then collapse to a compact applied-state pill so it stops covering
+// the scorecard / referral content while the undo action stays reachable.
+function UndoToast({ label }: { label: string }) {
+  const [collapsed, setCollapsed] = useState(false)
+  useEffect(() => {
+    setCollapsed(false)
+    const t = setTimeout(() => setCollapsed(true), 5000)
+    return () => clearTimeout(t)
+  }, [label])
+  if (collapsed) {
+    return (
+      <div className="toast toast-compact">
+        <span className="dot" />
+        <span className="grow">Simulation applied</span>
+        <button className="tbtn" onClick={() => actions.undo()}>{label}</button>
+      </div>
+    )
+  }
+  return (
+    <div className="toast">
+      <span>◆</span>
+      <span className="grow">Simulation applied. You can reverse the last action.</span>
+      <button className="tbtn" onClick={() => actions.undo()}>{label}</button>
+    </div>
+  )
 }

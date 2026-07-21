@@ -24,6 +24,7 @@ function conversionColorExpr(referrals: Referral[]): any {
   return ['match', ['get', 'territoryId'], ...pairs, '#e5e7eb']
 }
 const REL_HEX: Record<string, string> = { current: '#2563eb', growth: '#0d9488', prospect: '#7c3aed', at_risk: '#dc2626' }
+const REL_LABEL: Record<string, string> = { current: 'Current', growth: 'Growth', prospect: 'Prospect', at_risk: 'At risk' }
 function freshHex(a: Account) { return a.visitFresh === 'fresh' ? '#1f2937' : a.visitFresh === 'aging' ? '#d97706' : '#dc2626' }
 function radiusFor(a: Account) { return a.opportunityBand === 'high' ? 9 : a.opportunityBand === 'medium' ? 7 : 5 }
 
@@ -55,7 +56,7 @@ function territoryLabelsFC(applied: boolean): GeoJSONFC {
         properties: {
           territoryId: t.id,
           name: t.name,
-          detail: `${rep} · ${m.priorityCoveragePct}% coverage`,
+          detail: `${rep} · ${m.priorityCoveragePct}% covered`,
         },
       }
     }),
@@ -75,6 +76,7 @@ function accountsFC(list: Account[], applied: boolean): GeoJSONFC {
           radius: radiusFor(a), opp: a.opportunityScore, referralActive: a.referralActive,
           facilityType: a.facilityType, rep: repById(effectiveRepId(a, applied))?.name ?? '',
           rel: a.relationshipStatus, growth: a.relationshipStatus === 'growth' || a.whitespace.length > 0 ? 1 : 0,
+          lastContactDays: a.lastContactDays, oppTier: a.oppTier, stale: a.visitFresh === 'stale',
           // simulated pipeline value (deterministic from opportunity score)
           pipeline: Math.round(a.opportunityScore * 3.2) * 1000,
         },
@@ -116,9 +118,13 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
   const [failed, setFailed] = useState(false)
   const [preset, setPreset] = useState<Preset>('coverage')
   const [layers, setLayers] = useState<Layers>(PRESETS[0].layers)
+  const [zoom, setZoom] = useState(10.4)
+  const [legendOpen, setLegendOpen] = useState(false)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const appliedRef = useRef(applied)
   appliedRef.current = applied
+  const sRef = useRef(s)
+  sRef.current = s
 
   // init once
   useEffect(() => {
@@ -165,7 +171,16 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.fitBounds(RICHMOND_BOUNDS, { padding: 30, duration: 0 })
 
       map.addSource('territory-labels', { type: 'geojson', data: territoryLabelsFC(applied) as any })
-      map.addSource('accounts', { type: 'geojson', data: accountsFC(ACCOUNTS, applied) as any, cluster: true, clusterRadius: 42, clusterMaxZoom: 12 })
+      map.addSource('accounts', {
+        type: 'geojson', data: accountsFC(ACCOUNTS, applied) as any, cluster: true, clusterRadius: 42, clusterMaxZoom: 12,
+        // native per-cluster aggregates — lets cluster PAINT (ring color, badge) reflect what's
+        // inside without an async leaves fetch (that's still used for the hover card's exact counts/$)
+        clusterProperties: {
+          uncoveredCount: ['+', ['case', ['all', ['==', ['get', 'isPriority'], true], ['==', ['get', 'covered'], false]], 1, 0]],
+          staleCount: ['+', ['case', ['==', ['get', 'stale'], true], 1, 0]],
+          referralCount: ['+', ['case', ['==', ['get', 'referralActive'], true], 1, 0]],
+        } as any,
+      })
       map.addSource('accounts-raw', { type: 'geojson', data: accountsFC(ACCOUNTS, applied) as any }) // unclustered, for heatmap
       map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
@@ -189,9 +204,42 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addLayer({ id: 'flow-line', type: 'line', source: 'flow', layout: { 'line-cap': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.75 } })
       map.addLayer({ id: 'flow-src-pt', type: 'circle', source: 'flow-src', paint: { 'circle-radius': 6, 'circle-color': '#fff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3 } })
 
-      // clusters
-      map.addLayer({ id: 'clusters', type: 'circle', source: 'accounts', filter: ['has', 'point_count'], paint: { 'circle-color': '#0d5c63', 'circle-opacity': 0.85, 'circle-radius': ['step', ['get', 'point_count'], 15, 5, 20, 10, 26] } })
+      // clusters — size still = account count; a RING now encodes the most urgent thing
+      // inside (red = uncovered priority present, amber = overdue/stale accounts present,
+      // green = neither) so a manager reads risk before ever hovering.
+      const CLUSTER_URGENCY_RING: any = [
+        'case',
+        ['>', ['get', 'uncoveredCount'], 0], '#dc2626',
+        ['>', ['get', 'staleCount'], 0], '#d99a22',
+        '#16a34a',
+      ]
+      map.addLayer({
+        id: 'clusters', type: 'circle', source: 'accounts', filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#1b3a4b', 'circle-opacity': 0.88,
+          'circle-radius': ['step', ['get', 'point_count'], 15, 5, 20, 10, 26],
+          'circle-stroke-width': 3, 'circle-stroke-color': CLUSTER_URGENCY_RING, 'circle-stroke-opacity': 0.95,
+        },
+      })
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'accounts', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12, 'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'] }, paint: { 'text-color': '#fff' } })
+      // small badge for "active referral(s) inside" — the one positive signal worth a glance
+      map.addLayer({
+        id: 'cluster-referral-badge', type: 'circle', source: 'accounts',
+        filter: ['all', ['has', 'point_count'], ['>', ['get', 'referralCount'], 0]],
+        paint: {
+          'circle-radius': 6, 'circle-color': '#0d9488', 'circle-stroke-width': 1.5, 'circle-stroke-color': '#fff',
+          'circle-translate': ['literal', [14, -14]], 'circle-translate-anchor': 'viewport',
+        },
+      })
+      map.addLayer({
+        id: 'cluster-referral-badge-ic', type: 'symbol', source: 'accounts',
+        filter: ['all', ['has', 'point_count'], ['>', ['get', 'referralCount'], 0]],
+        layout: {
+          'text-field': '+', 'text-size': 10, 'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'],
+          'text-offset': [0, 0], 'text-anchor': 'center', 'text-allow-overlap': true, 'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#fff', 'text-translate': ['literal', [14, -14]], 'text-translate-anchor': 'viewport' } as any,
+      })
 
       // unclustered account points
       map.addLayer({
@@ -242,14 +290,29 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         paint: { 'circle-radius': ['+', ['get', 'radius'], 4], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#dc2626', 'circle-stroke-width': 3 },
       })
 
+      // account labels — only the accounts worth naming at a glance (Tier 1, uncovered
+      // priority, or an active referral source); everything else stays a plain dot even
+      // fully zoomed in, so the map never turns into wall-to-wall text.
+      map.addLayer({
+        id: 'account-label', type: 'symbol', source: 'accounts', minzoom: 12.5,
+        filter: ['all', ['!', ['has', 'point_count']],
+          ['any', ['==', ['get', 'oppTier'], 'Tier 1'], ['==', ['get', 'referralActive'], true],
+            ['all', ['==', ['get', 'isPriority'], true], ['==', ['get', 'covered'], false]]]],
+        layout: {
+          'text-field': ['get', 'name'], 'text-size': 11, 'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+          'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-allow-overlap': false, 'text-optional': true,
+        },
+        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
+      })
+
       // territory labels — name always; rep + coverage detail appears from zoom 11 up
       map.addLayer({
         id: 'territory-label', type: 'symbol', source: 'territory-labels',
         layout: {
-          'text-field': ['step', ['zoom'], ['get', 'name'], 11, ['format', ['get', 'name'], { 'font-scale': 1.0 }, '\n', {}, ['get', 'detail'], { 'font-scale': 0.82 }]],
+          'text-field': ['step', ['zoom'], ['get', 'name'], 10, ['format', ['get', 'name'], { 'font-scale': 1.0 }, '\n', {}, ['get', 'detail'], { 'font-scale': 0.82 }]],
           'text-size': 13, 'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'], 'text-line-height': 1.3, 'text-allow-overlap': false,
         },
-        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.8 },
+        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 2.2 },
       })
 
       // interactions
@@ -340,19 +403,41 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.on('mousemove', 'territory-fill', e => {
         const f = e.features?.[0]; if (!f) return
         const t = territoryById(f.properties!.territoryId)!; const m = appliedRef.current ? t.optimized : t.baseline
+        const status = f.properties!.status as string
+        // "main issue" — the same manager-exception data already shown in the Insights
+        // panel, so the hover card and the insights list never disagree about what's wrong.
+        const topIssue = insights(sRef.current).find(i => i.territoryId === t.id)
+        const issueLine = topIssue
+          ? topIssue.headline
+          : m.uncoveredPriority > 0
+            ? `${m.uncoveredPriority} overdue priority account${m.uncoveredPriority > 1 ? 's' : ''}`
+            : 'None — on track'
         hover.setLngLat(e.lngLat).setHTML(
-          `<div class="mp"><b>${t.name}</b>${repById(t.repId)?.name} · ${f.properties!.status}<br/>coverage ${m.priorityCoveragePct}% · ${m.visitsCompleted}/${m.visitsTarget} visits · cap ${m.capacityPct}%</div>`,
+          `<div class="mp mp-terr">
+            <div class="mp-terr-h">${t.name} · ${repById(t.repId)?.name}</div>
+            <div>${status} · ${m.priorityCoveragePct}% priority coverage</div>
+            <div>${m.capacityPct}% capacity</div>
+            <div class="mp-terr-issue${topIssue || m.uncoveredPriority > 0 ? ' warn' : ''}">Main issue: ${issueLine}</div>
+          </div>`,
         ).addTo(map)
       })
       map.on('mouseleave', 'territory-fill', () => { map.getCanvas().style.cursor = ''; hover.remove() })
       map.on('mouseenter', 'account-points', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mousemove', 'account-points', e => {
         const f = e.features?.[0]; if (!f) return
+        const p = f.properties!
         hover.setLngLat(e.lngLat).setHTML(
-          `<div class="mp"><b>${f.properties!.name}</b>${f.properties!.priority} priority · ${f.properties!.covered ? 'covered' : 'uncovered'} · opp ${f.properties!.opp}</div>`,
+          `<div class="mp mp-acct-hover">
+            <b>${p.name}</b>
+            <div>${p.facilityType} · ${REL_LABEL[p.rel] ?? p.rel}</div>
+            <div>Opportunity ${p.opp} · ${p.lastContactDays}d since contact</div>
+            ${p.referralActive ? '<div class="mp-tag">● Active referral</div>' : ''}
+          </div>`,
         ).addTo(map)
       })
       map.on('mouseleave', 'account-points', () => { map.getCanvas().style.cursor = ''; hover.remove() })
+
+      map.on('zoom', () => setZoom(map.getZoom()))
 
       // reduce basemap POI/transit noise for a cleaner management view
       try {
@@ -401,9 +486,12 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       if (kpi === 'atRisk') {
         map.setPaintProperty('territory-fill', 'fill-opacity', ['match', ['get', 'status'], 'Healthy', 0.07, 0.42])
       } else if (selId) {
-        map.setPaintProperty('territory-fill', 'fill-opacity', ['case', ['==', ['get', 'territoryId'], selId], 0.42, 0.09])
+        // selected territory brightens; the rest fade to ~20-30% (never fully flat, still readable)
+        map.setPaintProperty('territory-fill', 'fill-opacity', ['case', ['==', ['get', 'territoryId'], selId], 0.48, 0.24])
       } else {
-        map.setPaintProperty('territory-fill', 'fill-opacity', 0.26)
+        // at rest, keep the whole market legible but quiet — problem territories don't need
+        // help standing out yet (Watch/At Risk already read via their own fill color)
+        map.setPaintProperty('territory-fill', 'fill-opacity', 0.18)
       }
     }
 
@@ -483,7 +571,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
 
   return (
     <div className="map-wrap" style={{ position: 'relative' }}>
-      <div ref={containerRef} style={{ height: 460, width: '100%' }} />
+      <div ref={containerRef} style={{ height: 560, width: '100%' }} />
       <div className="map-presets" role="tablist" aria-label="Map view">
         {PRESETS.map(p => (
           <button key={p.id} role="tab" aria-selected={preset === p.id}
@@ -493,16 +581,32 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         ))}
         <span className="preset-hint">{PRESETS.find(p => p.id === preset)!.hint}</span>
       </div>
-      <div className="map-legend">
-        <span className="lg lg-head">Territory fill</span>
-        <span className="lg"><span className="legend-sw" style={{ background: '#2E7D5B' }} /> Healthy</span>
-        <span className="lg"><span className="legend-sw" style={{ background: '#D99A22' }} /> Watch</span>
-        <span className="lg"><span className="legend-sw" style={{ background: '#C74634' }} /> At Risk</span>
-        <span className="lg lg-head" style={{ marginLeft: 6 }}>Outline = rep</span>
-        {REPS.filter(r => r.territoryId).map(r => (
-          <span className="lg" key={r.id}><span className="legend-line" style={{ background: r.color }} /> {r.name.split(' ')[0]}</span>
-        ))}
-        <span className="lg muted">dot size = opportunity · click a territory to drill in</span>
+      <div className={'map-legend-wrap' + (legendOpen ? ' open' : '')}>
+        <button className="map-legend-toggle" onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen}>
+          {legendOpen ? '▾' : '▸'} Legend
+        </button>
+        {legendOpen && (
+          <div className="map-legend">
+            <span className="lg lg-head">Territory fill</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#2E7D5B' }} /> Healthy</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#D99A22' }} /> Watch</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#C74634' }} /> At Risk</span>
+            <span className="lg lg-head" style={{ marginLeft: 6 }}>Outline = rep</span>
+            {REPS.filter(r => r.territoryId).map(r => (
+              <span className="lg" key={r.id}><span className="legend-line" style={{ background: r.color }} /> {r.name.split(' ')[0]}</span>
+            ))}
+            {zoom < 12 && (
+              <>
+                <span className="lg lg-head" style={{ marginLeft: 6 }}>Cluster ring</span>
+                <span className="lg"><span className="legend-sw" style={{ background: '#dc2626' }} /> Uncovered priority inside</span>
+                <span className="lg"><span className="legend-sw" style={{ background: '#d99a22' }} /> Overdue accounts inside</span>
+                <span className="lg"><span className="legend-sw" style={{ background: '#16a34a' }} /> Healthy</span>
+                <span className="lg"><span className="legend-sw" style={{ background: '#0d9488', borderRadius: '50%' }} /> + active referral</span>
+              </>
+            )}
+            <span className="lg muted">Dot size = opportunity · click a territory to drill in</span>
+          </div>
+        )}
       </div>
     </div>
   )
