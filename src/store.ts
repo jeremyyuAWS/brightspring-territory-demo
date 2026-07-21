@@ -243,6 +243,20 @@ export const actions = {
     set({ monthlyPlanApplied: true, undoLabel: 'Undo monthly plan' })
   },
 
+  applyRecovery(referralId: string, source: string, action: string) {
+    undoSnapshot = snapUndo()
+    const task: FollowUpTask = { id: `tk-rec-${referralId}`, title: `Recovery: ${action}`, accountName: source, dueDate: '2026-07-23', owner: 'Jordan Ellis', source: 'Referral recovery', done: false }
+    addAudit({ actor: 'Demo Manager', action: `Recovery action queued for ${referralId}`, detail: 'Simulated', after: action })
+    set({ tasks: [task, ...state.tasks], undoLabel: `Undo recovery` })
+  },
+
+  addSourceToPlan(sourceName: string, winBack: string) {
+    undoSnapshot = snapUndo()
+    const task: FollowUpTask = { id: `tk-src-${sourceName}`, title: `Win-back: ${winBack}`, accountName: sourceName, dueDate: '2026-07-28', owner: 'Jordan Ellis', source: 'Loyalty win-back', done: false }
+    addAudit({ actor: 'Demo Manager', action: `Added ${sourceName} to next planning period`, detail: 'Simulated · loyalty win-back', after: winBack })
+    set({ tasks: [task, ...state.tasks], undoLabel: `Undo win-back` })
+  },
+
   reset() {
     undoSnapshot = null
     state = freshState()

@@ -5,7 +5,7 @@ import { useStore, actions } from '../store'
 import { TERRITORIES, REPS, ACCOUNTS, ELMINGTON_ID } from '../seed'
 import {
   RICHMOND_CENTER, RICHMOND_BOUNDS, REP_HOME, labelPoints, TERRITORY_POLYGONS,
-  isochroneFC, routeLineFC, territoriesGeoJSON, type GeoJSONFC,
+  isochroneFC, routeLineFC, referralFlowFC, referralSourceFC, territoriesGeoJSON, type GeoJSONFC,
 } from '../geo'
 import { statusFor, accountCovered, effectiveTerritoryId, effectiveRepId, repById, territoryById, insights } from '../selectors'
 import type { Account, Referral } from '../types'
@@ -81,7 +81,7 @@ function routeForRep(repId: string, applied: boolean): [number, number][] {
   return [REP_HOME[repId], ...accts.map(a => [a.lng, a.lat] as [number, number])]
 }
 
-interface Layers { uncovered: boolean; route: boolean; isochrone: boolean; heatmap: boolean }
+interface Layers { uncovered: boolean; route: boolean; isochrone: boolean; heatmap: boolean; referralFlow: boolean }
 
 export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: () => void }) {
   const s = useStore()
@@ -90,7 +90,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [layers, setLayers] = useState<Layers>({ uncovered: false, route: false, isochrone: false, heatmap: false })
+  const [layers, setLayers] = useState<Layers>({ uncovered: false, route: false, isochrone: false, heatmap: false, referralFlow: false })
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const appliedRef = useRef(applied)
   appliedRef.current = applied
@@ -145,6 +145,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('pulse', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
+      map.addSource('flow', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
+      map.addSource('flow-src', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
 
       // isochrone (drawn under everything)
       map.addLayer({ id: 'iso-fill', type: 'fill', source: 'iso', paint: { 'fill-color': '#0d5c63', 'fill-opacity': ['interpolate', ['linear'], ['get', 'minutes'], 30, 0.22, 60, 0.08] } })
@@ -157,6 +159,9 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
 
       // route line
       map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#1d4ed8', 'line-width': 2.5, 'line-dasharray': [2, 1] } })
+      // §13 referral flow lines (source → service location), colored by status, width by volume
+      map.addLayer({ id: 'flow-line', type: 'line', source: 'flow', layout: { 'line-cap': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.75 } })
+      map.addLayer({ id: 'flow-src-pt', type: 'circle', source: 'flow-src', paint: { 'circle-radius': 6, 'circle-color': '#fff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3 } })
 
       // clusters
       map.addLayer({ id: 'clusters', type: 'circle', source: 'accounts', filter: ['has', 'point_count'], paint: { 'circle-color': '#0d5c63', 'circle-opacity': 0.85, 'circle-radius': ['step', ['get', 'point_count'], 15, 5, 20, 10, 26] } })
@@ -255,6 +260,18 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       // hover popovers
       const hover = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 8 })
       popupRef.current = hover
+      // §13 referral flow hover
+      map.on('mouseenter', 'flow-src-pt', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mousemove', 'flow-src-pt', e => {
+        const f = e.features?.[0]; if (!f) return
+        hover.setLngLat(e.lngLat).setHTML(`<div class="mp"><b>${f.properties!.name}</b>Referral source · hover a flow line for status</div>`).addTo(map)
+      })
+      map.on('mouseleave', 'flow-src-pt', () => { map.getCanvas().style.cursor = ''; hover.remove() })
+      map.on('mousemove', 'flow-line', e => {
+        const f = e.features?.[0]; if (!f) return
+        hover.setLngLat(e.lngLat).setHTML(`<div class="mp"><b>${f.properties!.name}</b>${f.properties!.volume}/mo referrals · ${f.properties!.status}</div>`).addTo(map)
+      })
+      map.on('mouseleave', 'flow-line', () => { hover.remove() })
       map.on('mouseenter', 'territory-fill', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mousemove', 'territory-fill', e => {
         const f = e.features?.[0]; if (!f) return
@@ -343,6 +360,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     const map = mapRef.current; if (!map || !ready) return
     const rep = focusRep(s.filters.repId, s.selectedTerritoryId)
     map.setLayoutProperty('opp-heat', 'visibility', layers.heatmap ? 'visible' : 'none')
+      ; (map.getSource('flow') as mapboxgl.GeoJSONSource)?.setData((layers.referralFlow ? referralFlowFC() : { type: 'FeatureCollection', features: [] }) as any)
+      ; (map.getSource('flow-src') as mapboxgl.GeoJSONSource)?.setData((layers.referralFlow ? referralSourceFC() : { type: 'FeatureCollection', features: [] }) as any)
       ; (map.getSource('iso') as mapboxgl.GeoJSONSource)?.setData(
         (layers.isochrone ? isochroneFC(REP_HOME[rep], rep.charCodeAt(2)) : { type: 'FeatureCollection', features: [] }) as any,
       )
@@ -409,6 +428,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         <label><input type="checkbox" checked={layers.route} onChange={e => setLayers(l => ({ ...l, route: e.target.checked }))} /> Rep route <span className="muted">({focused?.initials})</span></label>
         <label><input type="checkbox" checked={layers.isochrone} onChange={e => setLayers(l => ({ ...l, isochrone: e.target.checked }))} /> Drive-time area</label>
         <label><input type="checkbox" checked={layers.heatmap} onChange={e => setLayers(l => ({ ...l, heatmap: e.target.checked }))} /> Opportunity heatmap</label>
+        <label><input type="checkbox" checked={layers.referralFlow} onChange={e => setLayers(l => ({ ...l, referralFlow: e.target.checked }))} /> Referral flow</label>
         <button className="lc-reset" onClick={() => { mapRef.current?.fitBounds(RICHMOND_BOUNDS, { padding: 30 }); actions.clearSelection() }}>Reset to market</button>
       </div>
       <div className="map-legend">

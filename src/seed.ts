@@ -234,6 +234,21 @@ function genReferrals(): Referral[] {
       notes: '', followUpDate: fu.toISOString().slice(0, 10), owner: rep.name,
     })
   }
+  // Deterministically make ~3 South Richmond referrals clearly at-risk (backdated / overdue / lost)
+  // for the §12 demo narrative. Only mutates non-converted, non-hero referrals → referral count and
+  // conversion are unchanged.
+  const southOpen = out.filter(r => r.territoryId === 't-south' && r.id !== 'R-1042'
+    && !['Accepted', 'Admitted'].includes(r.stage))
+  const atRiskSpecs: { stage: Referral['stage']; received: string; follow: string }[] = [
+    { stage: 'Received', received: '2026-07-02', follow: '2026-07-08' },
+    { stage: 'Contact Attempted', received: '2026-07-04', follow: '2026-07-10' },
+    { stage: 'Lost to Competitor', received: '2026-07-06', follow: '2026-07-12' },
+  ]
+  southOpen.slice(0, 3).forEach((r, i) => {
+    const spec = atRiskSpecs[i]
+    r.stage = spec.stage; r.receivedDate = spec.received; r.followUpDate = spec.follow
+    r.metFamily = spec.stage === 'Lost to Competitor' ? 'No' : 'Not Yet'
+  })
   return out
 }
 export const REFERRALS: Referral[] = genReferrals()

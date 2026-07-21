@@ -111,3 +111,46 @@ export function routeLineFC(points: [number, number][]): GeoJSONFC {
     features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: points }, properties: {} }],
   }
 }
+
+// ---- §13 referral flow map: source → service location ----
+const FLOW_STATUS_COLOR: Record<string, string> = { admitted: '#16a34a', pending: '#d99a22', lost: '#c74634' }
+export interface ReferralFlow { name: string; from: [number, number]; to: [number, number]; volume: number; status: 'admitted' | 'pending' | 'lost' }
+export const REFERRAL_FLOWS: ReferralFlow[] = [
+  { name: 'Riverbend Medical Center', from: [-77.44, 37.600], to: [-77.45, 37.537], volume: 6, status: 'admitted' },
+  { name: 'Bon Air Senior Living', from: [-77.47, 37.480], to: [-77.45, 37.492], volume: 5, status: 'admitted' },
+  { name: 'Stonegate Physicians', from: [-77.41, 37.548], to: [-77.45, 37.537], volume: 3, status: 'pending' },
+  { name: 'Chesterfield Medical Center', from: [-77.345, 37.560], to: [-77.353, 37.540], volume: 4, status: 'pending' },
+  { name: 'Woodhaven Medical Center', from: [-77.485, 37.500], to: [-77.45, 37.492], volume: 1, status: 'lost' },
+]
+
+function curve(a: [number, number], b: [number, number], bend = 0.35): [number, number][] {
+  const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+  const dx = b[0] - a[0], dy = b[1] - a[1]
+  const ctrl: [number, number] = [mid[0] - dy * bend, mid[1] + dx * bend]
+  const pts: [number, number][] = []
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24, mt = 1 - t
+    pts.push([mt * mt * a[0] + 2 * mt * t * ctrl[0] + t * t * b[0], mt * mt * a[1] + 2 * mt * t * ctrl[1] + t * t * b[1]])
+  }
+  return pts
+}
+
+export function referralFlowFC(): GeoJSONFC {
+  return {
+    type: 'FeatureCollection',
+    features: REFERRAL_FLOWS.map(f => ({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: curve(f.from, f.to) },
+      properties: { name: f.name, volume: f.volume, status: f.status, color: FLOW_STATUS_COLOR[f.status], width: 1.5 + f.volume * 0.9 },
+    })),
+  }
+}
+export function referralSourceFC(): GeoJSONFC {
+  return {
+    type: 'FeatureCollection',
+    features: REFERRAL_FLOWS.map(f => ({
+      type: 'Feature', geometry: { type: 'Point', coordinates: f.from },
+      properties: { name: f.name, color: FLOW_STATUS_COLOR[f.status] },
+    })),
+  }
+}

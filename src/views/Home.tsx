@@ -7,6 +7,7 @@ import { CompareReps } from '../components/CompareReps'
 import { marketKpis, territoryRows, insights, territoryById, funnel, referralConversion } from '../selectors'
 import type { MarketKpis } from '../selectors'
 import { StatusBadge, AnimatedNumber } from '../ui'
+import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
 
 const KPI_LABEL: Record<string, string> = {
   coverage: 'covered vs uncovered priority accounts',
@@ -90,6 +91,8 @@ export function Home() {
           </div>
 
           <ReferralFunnelCard />
+          <RiskRecoveryCard />
+          <LoyaltyLossCard />
 
           <div className="panel">
             <div className="phead"><h3>Leadership actions</h3></div>

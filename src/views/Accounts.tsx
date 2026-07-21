@@ -6,6 +6,7 @@ import type { Account, Priority, ReferralStage } from '../types'
 import { Drawer } from '../ui'
 import { ReferralForm } from '../components/ReferralForm'
 import { DispositionForm } from '../components/DispositionForm'
+import { predictElmington } from '../intel'
 
 const PRIORITY_CLASS: Record<Priority, string> = { High: 'risk', Medium: 'watch', Low: 'neutral' }
 
@@ -147,7 +148,29 @@ function Overview({ a, tName, repName }: { a: Account; tName: string; repName: s
         </div>
         <div className="section-title">Territory context</div>
         <p className="muted" style={{ fontSize: 13 }}>Anchor account for {tName} coverage. Strong discharge volume; a strategic relationship retained across the recent territory rebalance.</p>
+        {a.name.includes('Elmington') && <PredictorCard />}
       </div>
+    </div>
+  )
+}
+
+function PredictorCard() {
+  const p = predictElmington()
+  return (
+    <div className="predictor">
+      <div className="pred-head">
+        <span>Referral forecast <span className="badge sim" style={{ fontSize: 10 }}>◆ simulated · not fact</span></span>
+        <span className="pred-conf">{p.confidence}% confidence</span>
+      </div>
+      <div className="pred-value">{p.low}–{p.high} <span>referrals expected · {p.window}</span></div>
+      <div className="section-title" style={{ margin: '8px 0 4px' }}>Why</div>
+      {p.evidence.map((e, i) => (
+        <div className="pred-ev" key={i}>
+          <span className={`ev-dot ${e.positive ? 'pos' : 'neg'}`} />
+          <span className="ev-l">{e.label}</span>
+          <span className="ev-v">{e.value}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -196,21 +219,48 @@ function Activities({ id }: { id: string }) {
   )
 }
 
+const RELATIONSHIP_LINES: { line: string; status: 'current' | 'progress' | 'whitespace' | 'competitor'; owner: string; note: string }[] = [
+  { line: 'Pharmacy', status: 'current', owner: 'M. Torres', note: 'Active — primary pharmacy provider' },
+  { line: 'Home Health', status: 'whitespace', owner: 'Jordan Ellis', note: 'Whitespace — R-1042 is the wedge' },
+  { line: 'Hospice', status: 'progress', owner: 'Jordan Ellis', note: 'Education partnership in progress' },
+  { line: 'Rehabilitation', status: 'current', owner: 'D. Cole', note: 'Active — in-house therapy referrals' },
+  { line: 'Behavioral Health', status: 'whitespace', owner: '—', note: 'Whitespace — not yet engaged' },
+  { line: 'Personal Care', status: 'competitor', owner: '—', note: 'Competitor-held (regional provider)' },
+]
+const REL_STATUS: Record<string, { label: string; cls: string }> = {
+  current: { label: 'Current', cls: 'healthy' }, progress: { label: 'In progress', cls: 'blue' },
+  whitespace: { label: 'Whitespace', cls: 'neutral' }, competitor: { label: 'Competitor', cls: 'risk' },
+}
+
 function Relationship({ a }: { a: Account }) {
   return (
-    <div className="two-col">
-      <div>
-        <div className="section-title">Current relationships</div>
-        <ul style={{ paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
-          <li><b>Home Health</b> — active preferred provider · champion: Patricia Hale</li>
-          <li><b>Hospice</b> — education partnership in progress</li>
-          <li><b>Personal Care</b> — whitespace, not yet engaged</li>
-        </ul>
+    <div>
+      <div className="callout" style={{ background: '#f2f7fd', borderColor: '#bcd4ee', color: '#12385f' }}>
+        <span className="ico">◈</span>
+        <div><b>{a.name.split(' ')[0]} uses BrightSpring Pharmacy and Rehabilitation, but not Home Health or Hospice.</b> The administrator relationship is strong, and a new DON started 43 days ago — recommend a <b>coordinated cross-line introduction</b> led by the Pharmacy owner.</div>
       </div>
-      <div>
-        <div className="section-title">Champions &amp; risks</div>
-        <div className="callout" style={{ background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}><span className="ico">★</span><div><b>Champion:</b> Patricia Hale (Administrator) — 6-yr tenure, drives referral volume.</div></div>
-        <div className="callout" style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}><span className="ico">⚠</span><div><b>Risk:</b> Discharge planner is newer (2 yrs) and fields competing home-health outreach.</div></div>
+      <div className="two-col">
+        <div>
+          <div className="section-title">BrightSpring service lines</div>
+          <div className="rel-graph">
+            <div className="rel-hub">{a.name.split(' ')[0]}</div>
+            {RELATIONSHIP_LINES.map(r => (
+              <div key={r.line} className={`rel-line ${r.status}`}>
+                <span className="rel-line-name">{r.line}</span>
+                <span className={`badge ${REL_STATUS[r.status].cls}`} style={{ fontSize: 10 }}>{REL_STATUS[r.status].label}</span>
+                <span className="rel-line-note">{r.note}</span>
+                <span className="rel-line-owner muted">{r.owner !== '—' ? `owner: ${r.owner}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="section-title">Champions &amp; risks</div>
+          <div className="callout" style={{ background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}><span className="ico">★</span><div><b>Champion:</b> Patricia Hale (Administrator) — 6-yr tenure, drives referral volume across lines.</div></div>
+          <div className="callout" style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}><span className="ico">⚠</span><div><b>Watch:</b> New DON started 43 days ago — relationship not yet established; fields competing home-health outreach.</div></div>
+          <div className="section-title" style={{ marginTop: 14 }}>Cross-sell opportunity</div>
+          <div className="callout" style={{ background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' }}><span className="ico">↗</span><div>Pharmacy champion can warm-intro <b>Home Health + Hospice</b>. Est. <b>+3–5 referrals/mo</b> if converted. <span className="badge sim" style={{ fontSize: 10 }}>◆ simulated</span></div></div>
+        </div>
       </div>
     </div>
   )

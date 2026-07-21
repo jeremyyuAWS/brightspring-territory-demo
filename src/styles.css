@@ -244,6 +244,43 @@ th.th-sort:hover { color: var(--brand); }
 .kv dt { color: var(--text-3); font-weight: 600; }
 .kv dd { margin: 0; }
 
+/* ---------- predictor + relationship graph ---------- */
+.predictor { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; background: #fbfcfe; }
+.pred-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.pred-conf { color: var(--brand); }
+.pred-value { font-size: 22px; font-weight: 750; margin: 6px 0; }
+.pred-value span { font-size: 12.5px; font-weight: 500; color: var(--text-3); }
+.pred-ev { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.ev-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ev-dot.pos { background: var(--healthy); } .ev-dot.neg { background: var(--risk); }
+.pred-ev .ev-l { color: var(--text-3); width: 118px; flex: none; }
+.pred-ev .ev-v { color: var(--text); }
+.rel-graph { display: flex; flex-direction: column; gap: 7px; }
+.rel-hub { align-self: flex-start; background: var(--brand); color: #fff; font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 999px; margin-bottom: 4px; }
+.rel-line { display: grid; grid-template-columns: 118px auto 1fr; align-items: center; gap: 8px; border-left: 2px solid var(--border); padding: 7px 0 7px 12px; position: relative; }
+.rel-line.current { border-left-color: var(--healthy); }
+.rel-line.progress { border-left-color: var(--blue); }
+.rel-line.competitor { border-left-color: var(--risk); }
+.rel-line.whitespace { border-left-color: var(--border-strong); }
+.rel-line-name { font-weight: 650; font-size: 13px; }
+.rel-line-note { font-size: 12px; color: var(--text-2); }
+.rel-line-owner { font-size: 11px; grid-column: 3; }
+
+/* ---------- referral intelligence ---------- */
+.intel-summary { display: block; width: 100%; text-align: left; border: 1px solid #fde68a; background: #fffbeb; color: #78350f; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; cursor: pointer; margin-bottom: 12px; }
+.intel-summary:hover { border-color: var(--watch); }
+.risk-row { border-top: 1px solid var(--border); padding: 10px 0; }
+.risk-head { display: flex; align-items: center; gap: 7px; }
+.sev-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.sev-dot.high { background: var(--risk); } .sev-dot.medium { background: var(--watch); }
+.risk-rec { font-size: 12.5px; color: var(--text-2); margin: 4px 0 7px 15px; }
+.loyalty-row { border-top: 1px solid var(--border); padding: 10px 0; }
+.loyalty-row.hero { background: #fef2f2; border-radius: 10px; padding: 10px 12px; border: 1px solid #fecaca; margin-bottom: 4px; }
+.loyalty-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.loyalty-head b { font-size: 13px; }
+.loyalty-body { font-size: 12.5px; color: var(--text-2); }
+.loyalty-win { font-size: 12.5px; color: var(--brand); margin: 6px 0; }
+
 /* ---------- bar chart ---------- */
 .barchart { display: flex; flex-direction: column; gap: 8px; }
 .barrow { display: flex; align-items: center; gap: 10px; }
