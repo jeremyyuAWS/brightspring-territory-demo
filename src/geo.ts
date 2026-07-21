@@ -1,0 +1,113 @@
+// Richmond, VA synthetic geography for the demo map.
+// Coordinates are plausible (real Richmond area) but territory shapes are stylized, not official.
+
+export const RICHMOND_CENTER: [number, number] = [-77.455, 37.5405]
+export const RICHMOND_BOUNDS: [[number, number], [number, number]] = [
+  [-77.62, 37.45], // sw
+  [-77.31, 37.63], // ne
+]
+
+// territory polygon rings (lng,lat), center column N/C/S flanked by W and E
+export const TERRITORY_POLYGONS: Record<string, [number, number][]> = {
+  't-north': [
+    [-77.52, 37.615], [-77.38, 37.615], [-77.385, 37.565], [-77.45, 37.55], [-77.515, 37.565], [-77.52, 37.615],
+  ],
+  't-central': [
+    [-77.515, 37.565], [-77.45, 37.55], [-77.385, 37.565], [-77.39, 37.515], [-77.45, 37.505], [-77.51, 37.515], [-77.515, 37.565],
+  ],
+  't-south': [
+    [-77.51, 37.515], [-77.45, 37.505], [-77.39, 37.515], [-77.40, 37.465], [-77.50, 37.465], [-77.51, 37.515],
+  ],
+  't-west': [
+    [-77.60, 37.545], [-77.585, 37.60], [-77.52, 37.615], [-77.515, 37.565], [-77.51, 37.515], [-77.50, 37.465], [-77.575, 37.48], [-77.60, 37.545],
+  ],
+  't-east': [
+    [-77.38, 37.615], [-77.32, 37.575], [-77.32, 37.50], [-77.40, 37.465], [-77.39, 37.515], [-77.385, 37.565], [-77.38, 37.615],
+  ],
+}
+
+// bounding boxes to scatter account points comfortably inside each territory
+export const TERRITORY_BBOX: Record<string, { minLng: number; maxLng: number; minLat: number; maxLat: number }> = {
+  't-north': { minLng: -77.50, maxLng: -77.40, minLat: 37.570, maxLat: 37.605 },
+  't-central': { minLng: -77.50, maxLng: -77.40, minLat: 37.520, maxLat: 37.555 },
+  't-south': { minLng: -77.49, maxLng: -77.41, minLat: 37.475, maxLat: 37.510 },
+  't-west': { minLng: -77.575, maxLng: -77.525, minLat: 37.500, maxLat: 37.590 },
+  't-east': { minLng: -77.375, maxLng: -77.335, minLat: 37.500, maxLat: 37.570 },
+}
+
+export const REP_HOME: Record<string, [number, number]> = {
+  'r-alex': [-77.45, 37.590],
+  'r-maya': [-77.45, 37.535],
+  'r-jordan': [-77.45, 37.490],
+  'r-taylor': [-77.355, 37.535],
+  'r-sam': [-77.550, 37.545],
+  'r-riley': [-77.44, 37.540],
+}
+
+export type GeoJSONFeature = {
+  type: 'Feature'
+  geometry: { type: string; coordinates: any }
+  properties: Record<string, any>
+}
+export type GeoJSONFC = { type: 'FeatureCollection'; features: GeoJSONFeature[] }
+
+export function territoriesGeoJSON(props: (id: string) => Record<string, any>): GeoJSONFC {
+  return {
+    type: 'FeatureCollection',
+    features: Object.entries(TERRITORY_POLYGONS).map(([id, ring]) => ({
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [ring] },
+      properties: { territoryId: id, ...props(id) },
+    })),
+  }
+}
+
+export function labelPoints(): Record<string, [number, number]> {
+  // centroid-ish label anchor per territory
+  return {
+    't-north': [-77.45, 37.588],
+    't-central': [-77.45, 37.537],
+    't-south': [-77.45, 37.492],
+    't-west': [-77.552, 37.545],
+    't-east': [-77.353, 37.540],
+  }
+}
+
+// deterministic mock drive-time isochrone (concentric organic polygon) around a center.
+// radiusDeg roughly maps to minutes; jitter is deterministic per vertex.
+export function isochrone(center: [number, number], radiusDeg: number, seed: number, points = 40): [number, number][] {
+  const ring: [number, number][] = []
+  const latScale = 1 / Math.cos((center[1] * Math.PI) / 180) // stretch lng so it looks circular on screen
+  for (let i = 0; i <= points; i++) {
+    const a = (i / points) * Math.PI * 2
+    // deterministic pseudo-noise
+    const n = 0.82 + 0.18 * Math.abs(Math.sin(a * 3 + seed) * Math.cos(a * 2 + seed * 0.7))
+    const r = radiusDeg * n
+    ring.push([center[0] + Math.cos(a) * r * latScale, center[1] + Math.sin(a) * r])
+  }
+  return ring
+}
+
+export function isochroneFC(center: [number, number], seed: number): GeoJSONFC {
+  // 60 / 45 / 30 min, painted largest-first so smaller ones layer on top
+  const bands = [
+    { minutes: 60, radius: 0.030 },
+    { minutes: 45, radius: 0.021 },
+    { minutes: 30, radius: 0.013 },
+  ]
+  return {
+    type: 'FeatureCollection',
+    features: bands.map(b => ({
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [isochrone(center, b.radius, seed + b.minutes)] },
+      properties: { minutes: b.minutes },
+    })),
+  }
+}
+
+export function routeLineFC(points: [number, number][]): GeoJSONFC {
+  return {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: points }, properties: {} }],
+  }
+}
