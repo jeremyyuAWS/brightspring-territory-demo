@@ -18,6 +18,7 @@ export interface DemoState {
   filters: Filters
   selectedTerritoryId: string | null
   selectedInsightId: string | null
+  selectedKpi: string | null // 'coverage' | 'priorityCovered' | 'conversion' | 'atRisk'
   optimizationApplied: boolean
   referrals: Referral[]
   audit: AuditEntry[]
@@ -45,6 +46,7 @@ function freshState(): DemoState {
     filters: { ...defaultFilters },
     selectedTerritoryId: null,
     selectedInsightId: null,
+    selectedKpi: null,
     optimizationApplied: false,
     referrals: REFERRALS.map(r => ({ ...r })),
     audit: [],
@@ -102,11 +104,14 @@ export const actions = {
   openAccount(id: string | null) { set({ openAccountId: id, tab: id ? 'accounts' : state.tab }) },
   setFilter(patch: Partial<Filters>) { set({ filters: { ...state.filters, ...patch } }) },
   selectTerritory(id: string | null) {
-    set({ selectedTerritoryId: state.selectedTerritoryId === id ? null : id, selectedInsightId: null })
+    set({ selectedTerritoryId: state.selectedTerritoryId === id ? null : id, selectedInsightId: null, selectedKpi: null })
   },
-  clearSelection() { set({ selectedTerritoryId: null, selectedInsightId: null, filters: { ...state.filters, status: 'all' } }) },
+  selectKpi(id: string | null) {
+    set({ selectedKpi: state.selectedKpi === id ? null : id, selectedInsightId: null })
+  },
+  clearSelection() { set({ selectedTerritoryId: null, selectedInsightId: null, selectedKpi: null, filters: { ...state.filters, status: 'all' } }) },
   selectInsight(id: string | null, territoryId?: string | null) {
-    set({ selectedInsightId: state.selectedInsightId === id ? null : id, selectedTerritoryId: territoryId ?? state.selectedTerritoryId })
+    set({ selectedInsightId: state.selectedInsightId === id ? null : id, selectedTerritoryId: territoryId ?? state.selectedTerritoryId, selectedKpi: null })
   },
   openBuilder() { set({ builderOpen: true, selectedTerritoryId: 't-south' }) },
   closeBuilder() { set({ builderOpen: false }) },

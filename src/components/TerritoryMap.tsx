@@ -15,6 +15,8 @@ export function TerritoryMap() {
   const [hover, setHover] = useState<{ x: number; y: number; html: React.ReactNode } | null>(null)
   const applied = s.optimizationApplied
   const sel = s.selectedTerritoryId
+  const kpi = s.selectedKpi
+  const coverageKpi = kpi === 'coverage' || kpi === 'priorityCovered'
   const activeInsight = insights(s).find(i => i.id === s.selectedInsightId)
   const hlAccounts = new Set(activeInsight?.accountIds ?? [])
 
@@ -24,7 +26,7 @@ export function TerritoryMap() {
         {/* territory polygons */}
         {TERRITORIES.map(t => {
           const st = statusFor(t, applied)
-          const dim = sel && sel !== t.id
+          const dim = (sel && sel !== t.id) || (kpi === 'atRisk' && st === 'Healthy')
           return (
             <polygon key={t.id} points={t.polygon} fill={STATUS_FILL[st]} fillOpacity={0.82}
               className={`terr-poly ${dim ? 'dim' : ''}`}
@@ -55,9 +57,9 @@ export function TerritoryMap() {
         {/* account pins */}
         {ACCOUNTS.map(a => {
           const tid = effectiveTerritoryId(a, applied)
-          const dim = (sel && sel !== tid) || (hlAccounts.size > 0 && !hlAccounts.has(a.id))
           const covered = accountCovered(a, applied)
-          const hl = hlAccounts.has(a.id)
+          const dim = (sel && sel !== tid) || (hlAccounts.size > 0 && !hlAccounts.has(a.id)) || (coverageKpi && covered)
+          const hl = hlAccounts.has(a.id) || (coverageKpi && !covered && a.isPriority)
           return (
             <circle key={a.id} cx={a.coord.x} cy={a.coord.y} r={tierRadius(a)}
               fill={covered ? '#0ea5e9' : '#ef4444'} fillOpacity={covered ? 0.9 : 1}

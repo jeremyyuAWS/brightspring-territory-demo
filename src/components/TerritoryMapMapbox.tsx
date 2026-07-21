@@ -2,15 +2,27 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useStore, actions } from '../store'
-import { TERRITORIES, REPS, ACCOUNTS } from '../seed'
+import { TERRITORIES, REPS, ACCOUNTS, ELMINGTON_ID } from '../seed'
 import {
-  RICHMOND_CENTER, RICHMOND_BOUNDS, REP_HOME, labelPoints,
+  RICHMOND_CENTER, RICHMOND_BOUNDS, REP_HOME, labelPoints, TERRITORY_POLYGONS,
   isochroneFC, routeLineFC, territoriesGeoJSON, type GeoJSONFC,
 } from '../geo'
-import { statusFor, accountCovered, effectiveTerritoryId, effectiveRepId, repById, territoryById } from '../selectors'
-import type { Account } from '../types'
+import { statusFor, accountCovered, effectiveTerritoryId, effectiveRepId, repById, territoryById, insights } from '../selectors'
+import type { Account, Referral } from '../types'
 
 const STATUS_HEX: Record<string, string> = { Healthy: '#2E7D5B', Watch: '#D99A22', 'At Risk': '#C74634' }
+
+// per-territory referral-conversion choropleth color (live from current referrals)
+function conversionColorExpr(referrals: Referral[]): any {
+  const ramp = (pct: number) => pct >= 55 ? '#16a34a' : pct >= 40 ? '#65a30d' : pct >= 25 ? '#d99a22' : '#c74634'
+  const pairs: any[] = []
+  for (const t of TERRITORIES) {
+    const inT = referrals.filter(r => r.territoryId === t.id)
+    const conv = inT.length ? Math.round(inT.filter(r => r.stage === 'Accepted' || r.stage === 'Admitted').length / inT.length * 100) : 0
+    pairs.push(t.id, ramp(conv))
+  }
+  return ['match', ['get', 'territoryId'], ...pairs, '#e5e7eb']
+}
 const REL_HEX: Record<string, string> = { current: '#2563eb', growth: '#0d9488', prospect: '#7c3aed', at_risk: '#dc2626' }
 function freshHex(a: Account) { return a.visitFresh === 'fresh' ? '#1f2937' : a.visitFresh === 'aging' ? '#d97706' : '#dc2626' }
 function radiusFor(a: Account) { return a.opportunityBand === 'high' ? 9 : a.opportunityBand === 'medium' ? 7 : 5 }
@@ -49,7 +61,8 @@ function accountsFC(list: Account[], applied: boolean): GeoJSONFC {
         properties: {
           accountId: a.id, name: a.name, covered, priority: a.priority, isPriority: a.isPriority,
           relColor: REL_HEX[a.relationshipStatus], strokeColor: covered ? freshHex(a) : '#dc2626',
-          radius: radiusFor(a), opp: a.opportunityScore,
+          radius: radiusFor(a), opp: a.opportunityScore, referralActive: a.referralActive,
+          facilityType: a.facilityType, rep: repById(effectiveRepId(a, applied))?.name ?? '',
         },
       }
     }),
@@ -68,7 +81,7 @@ function routeForRep(repId: string, applied: boolean): [number, number][] {
   return [REP_HOME[repId], ...accts.map(a => [a.lng, a.lat] as [number, number])]
 }
 
-interface Layers { uncovered: boolean; route: boolean; isochrone: boolean }
+interface Layers { uncovered: boolean; route: boolean; isochrone: boolean; heatmap: boolean }
 
 export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: () => void }) {
   const s = useStore()
@@ -77,7 +90,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [layers, setLayers] = useState<Layers>({ uncovered: false, route: false, isochrone: false })
+  const [layers, setLayers] = useState<Layers>({ uncovered: false, route: false, isochrone: false, heatmap: false })
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const appliedRef = useRef(applied)
   appliedRef.current = applied
@@ -93,13 +106,17 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         style: 'mapbox://styles/mapbox/light-v11',
         center: RICHMOND_CENTER,
         zoom: 10.4,
+        pitch: 30, // gentle 3D
+        bearing: -6,
         cooperativeGestures: false,
       })
     } catch {
       setFailed(true); onFail?.(); return
     }
     mapRef.current = map
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right')
+    map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 90, unit: 'imperial' }), 'bottom-left')
     // Fall back gracefully if the style never loads. Generous window so a cold start or Vite
     // dependency (re)optimization isn't mistaken for a failure; a real auth error trips it early.
     let setupDone = false
@@ -124,15 +141,17 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
 
       map.addSource('territory-labels', { type: 'geojson', data: territoryLabelsFC(applied) as any })
       map.addSource('accounts', { type: 'geojson', data: accountsFC(ACCOUNTS, applied) as any, cluster: true, clusterRadius: 42, clusterMaxZoom: 12 })
+      map.addSource('accounts-raw', { type: 'geojson', data: accountsFC(ACCOUNTS, applied) as any }) // unclustered, for heatmap
       map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
+      map.addSource('pulse', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
 
       // isochrone (drawn under everything)
       map.addLayer({ id: 'iso-fill', type: 'fill', source: 'iso', paint: { 'fill-color': '#0d5c63', 'fill-opacity': ['interpolate', ['linear'], ['get', 'minutes'], 30, 0.22, 60, 0.08] } })
       map.addLayer({ id: 'iso-line', type: 'line', source: 'iso', paint: { 'line-color': '#0d5c63', 'line-width': 1, 'line-opacity': 0.5 } })
 
-      // territory polygons
-      map.addLayer({ id: 'territory-fill', type: 'fill', source: 'territories', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.34 } })
+      // territory polygons (smooth recolor/opacity transitions for the optimize animation)
+      map.addLayer({ id: 'territory-fill', type: 'fill', source: 'territories', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.34, 'fill-color-transition': { duration: 600 } as any, 'fill-opacity-transition': { duration: 600 } as any } })
       map.addLayer({ id: 'territory-outline', type: 'line', source: 'territories', paint: { 'line-color': '#334155', 'line-width': 1.5 } })
       map.addLayer({ id: 'territory-selected', type: 'line', source: 'territories', filter: ['==', ['get', 'territoryId'], '__none__'], paint: { 'line-color': '#0f172a', 'line-width': 3 } })
 
@@ -154,6 +173,36 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
           'circle-opacity': 0.92,
         },
       })
+      // active-referral halo (under the points)
+      map.addLayer({
+        id: 'referral-halo', type: 'circle', source: 'accounts',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'referralActive'], true]],
+        paint: { 'circle-radius': ['+', ['get', 'radius'], 6], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#0d9488', 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.7 },
+      }, 'account-points')
+      // selected-account focus ring (under the points)
+      map.addLayer({
+        id: 'account-focus', type: 'circle', source: 'accounts',
+        filter: ['==', ['get', 'accountId'], '__none__'],
+        paint: { 'circle-radius': ['+', ['get', 'radius'], 9], 'circle-color': 'rgba(27,90,168,.12)', 'circle-stroke-color': '#1b5aa8', 'circle-stroke-width': 3 },
+      }, 'account-points')
+      // opportunity heatmap (hidden by default; toggled via Layers)
+      map.addLayer({
+        id: 'opp-heat', type: 'heatmap', source: 'accounts-raw',
+        layout: { visibility: 'none' },
+        paint: {
+          'heatmap-weight': ['interpolate', ['linear'], ['get', 'opp'], 0, 0.1, 100, 1],
+          'heatmap-intensity': 1.1,
+          'heatmap-radius': 38,
+          'heatmap-opacity': 0.75,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0,0,0,0)', 0.2, '#dbeafe', 0.45, '#60a5fa', 0.7, '#2563eb', 1, '#1e3a8a'],
+        },
+      }, 'territory-fill')
+      // optimize pulse ring (animated on Apply)
+      map.addLayer({
+        id: 'pulse-ring', type: 'circle', source: 'pulse',
+        paint: { 'circle-radius': 6, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#1b5aa8', 'circle-stroke-width': 3, 'circle-stroke-opacity': 0.9 },
+      }, 'account-points')
       // uncovered-priority emphasis (hidden by default)
       map.addLayer({
         id: 'uncovered-priority', type: 'circle', source: 'accounts',
@@ -173,8 +222,22 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.on('click', 'territory-fill', e => {
         const f = e.features?.[0]; if (f) actions.selectTerritory(f.properties!.territoryId)
       })
+      const clickPopup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '260px' })
       map.on('click', 'account-points', e => {
-        const f = e.features?.[0]; if (f) actions.openAccount(f.properties!.accountId)
+        const f = e.features?.[0]; if (!f) return
+        const p = f.properties!
+        const html = `<div class="mp-acct">
+          <b>${p.name}</b>
+          <div class="mp-sub">${p.facilityType} · ${p.priority} priority</div>
+          <div class="mp-kv"><span>Owner</span>${p.rep}</div>
+          <div class="mp-kv"><span>Coverage</span>${p.covered ? 'Covered' : '<span style="color:#dc2626">Uncovered</span>'}</div>
+          <div class="mp-kv"><span>Opportunity</span>${p.opp}</div>
+          ${p.referralActive ? '<div class="mp-tag">● Active referral</div>' : ''}
+          <button class="mp-open" type="button">Open account →</button>
+        </div>`
+        clickPopup.setLngLat((f.geometry as any).coordinates).setHTML(html).addTo(map)
+        const btn = clickPopup.getElement()?.querySelector('.mp-open') as HTMLButtonElement | null
+        if (btn) btn.onclick = () => { const id = p.accountId; clickPopup.remove(); actions.openAccount(id) }
       })
       map.on('click', 'clusters', async e => {
         const f = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })[0]
@@ -210,6 +273,15 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       })
       map.on('mouseleave', 'account-points', () => { map.getCanvas().style.cursor = ''; hover.remove() })
 
+      // reduce basemap POI/transit noise for a cleaner management view
+      try {
+        for (const layer of map.getStyle().layers ?? []) {
+          if (/poi|transit|natural-point|airport|road-label-small/.test(layer.id)) {
+            map.setLayoutProperty(layer.id, 'visibility', 'none')
+          }
+        }
+      } catch { /* style variant without these layers */ }
+
       setReady(true)
     }
     map.on('load', setup)
@@ -219,27 +291,58 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  // update data + styling when applied / selection changes
+  // update data + cross-filter styling when applied / selection / KPI / insight changes
   useEffect(() => {
     const map = mapRef.current; if (!map || !ready) return
     const selId = s.selectedTerritoryId
     const repFilter = s.filters.repId
-    // filter accounts by selection / rep
+    const kpi = s.selectedKpi
+    const insight = insights(s).find(i => i.id === s.selectedInsightId)
+    const hlIds = insight?.accountIds ?? []
+
+    // account list (territory / rep filter)
     let list = ACCOUNTS
     if (repFilter !== 'all') list = list.filter(a => effectiveRepId(a, applied) === repFilter)
     if (selId) list = list.filter(a => effectiveTerritoryId(a, applied) === selId)
       ; (map.getSource('territories') as mapboxgl.GeoJSONSource)?.setData(territoriesFC(applied) as any)
       ; (map.getSource('territory-labels') as mapboxgl.GeoJSONSource)?.setData(territoryLabelsFC(applied) as any)
       ; (map.getSource('accounts') as mapboxgl.GeoJSONSource)?.setData(accountsFC(list, applied) as any)
+      ; (map.getSource('accounts-raw') as mapboxgl.GeoJSONSource)?.setData(accountsFC(list, applied) as any)
+
     map.setFilter('territory-selected', ['==', ['get', 'territoryId'], selId ?? '__none__'])
-    map.setPaintProperty('territory-fill', 'fill-opacity', selId ? ['case', ['==', ['get', 'territoryId'], selId], 0.56, 0.14] : 0.34)
-  }, [applied, s.selectedTerritoryId, s.filters.repId, ready])
+
+    // territory fill: conversion choropleth, at-risk emphasis, selection dim, or base health
+    if (kpi === 'conversion') {
+      map.setPaintProperty('territory-fill', 'fill-color', conversionColorExpr(s.referrals))
+      map.setPaintProperty('territory-fill', 'fill-opacity', 0.6)
+    } else {
+      map.setPaintProperty('territory-fill', 'fill-color', ['get', 'color'])
+      if (kpi === 'atRisk') {
+        map.setPaintProperty('territory-fill', 'fill-opacity', ['match', ['get', 'status'], 'Healthy', 0.1, 0.62])
+      } else if (selId) {
+        map.setPaintProperty('territory-fill', 'fill-opacity', ['case', ['==', ['get', 'territoryId'], selId], 0.56, 0.14])
+      } else {
+        map.setPaintProperty('territory-fill', 'fill-opacity', 0.34)
+      }
+    }
+
+    // uncovered-priority emphasis: Layers toggle OR coverage KPI
+    const showUncovered = layers.uncovered || kpi === 'coverage' || kpi === 'priorityCovered'
+    map.setLayoutProperty('uncovered-priority', 'visibility', showUncovered ? 'visible' : 'none')
+
+    // dim covered points when a coverage KPI is active
+    const dimCovered = kpi === 'coverage' || kpi === 'priorityCovered'
+    map.setPaintProperty('account-points', 'circle-opacity', dimCovered ? ['case', ['==', ['get', 'covered'], true], 0.22, 1] : 0.92)
+
+    // focus ring on insight-highlighted accounts
+    map.setFilter('account-focus', hlIds.length ? ['in', ['get', 'accountId'], ['literal', hlIds]] : ['==', ['get', 'accountId'], '__none__'])
+  }, [applied, s.selectedTerritoryId, s.filters.repId, s.selectedKpi, s.selectedInsightId, s.referrals, layers.uncovered, ready])
 
   // overlays
   useEffect(() => {
     const map = mapRef.current; if (!map || !ready) return
     const rep = focusRep(s.filters.repId, s.selectedTerritoryId)
-    map.setLayoutProperty('uncovered-priority', 'visibility', layers.uncovered ? 'visible' : 'none')
+    map.setLayoutProperty('opp-heat', 'visibility', layers.heatmap ? 'visible' : 'none')
       ; (map.getSource('iso') as mapboxgl.GeoJSONSource)?.setData(
         (layers.isochrone ? isochroneFC(REP_HOME[rep], rep.charCodeAt(2)) : { type: 'FeatureCollection', features: [] }) as any,
       )
@@ -247,6 +350,51 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         (layers.route ? routeLineFC(routeForRep(rep, applied)) : { type: 'FeatureCollection', features: [] }) as any,
       )
   }, [layers, s.filters.repId, s.selectedTerritoryId, applied, ready])
+
+  // optimize animation: pulse affected accounts + ease camera when Apply flips false→true
+  const prevApplied = useRef(applied)
+  useEffect(() => {
+    const map = mapRef.current
+    const was = prevApplied.current
+    prevApplied.current = applied
+    if (!map || !ready || was === applied || !applied) return
+
+    const affected = ACCOUNTS.filter(a => a.id === ELMINGTON_ID || (!a.covered && accountCovered(a, true)))
+    const src = map.getSource('pulse') as mapboxgl.GeoJSONSource | undefined
+    if (!src) return
+    src.setData({
+      type: 'FeatureCollection',
+      features: affected.map(a => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [a.lng, a.lat] }, properties: {} })),
+    } as any)
+    map.easeTo({ padding: { top: 20, bottom: 20, left: 20, right: 20 }, duration: 700 })
+
+    let raf = 0
+    const start = performance.now()
+    const DUR = 1500
+    const tick = (now: number) => {
+      const elapsed = now - start
+      const cyc = (elapsed % 750) / 750 // two ~0.75s pulses
+      map.setPaintProperty('pulse-ring', 'circle-radius', 6 + cyc * 26)
+      map.setPaintProperty('pulse-ring', 'circle-stroke-opacity', 0.9 * (1 - cyc))
+      if (elapsed < DUR) raf = requestAnimationFrame(tick)
+      else src.setData({ type: 'FeatureCollection', features: [] } as any)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [applied, ready])
+
+  // smooth fly-to a selected territory; fit the whole market when cleared
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !ready) return
+    const selId = s.selectedTerritoryId
+    if (selId && TERRITORY_POLYGONS[selId]) {
+      const ring = TERRITORY_POLYGONS[selId]
+      const lngs = ring.map(p => p[0]); const lats = ring.map(p => p[1])
+      map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, duration: 850, maxZoom: 12.5 })
+    } else {
+      map.fitBounds(RICHMOND_BOUNDS, { padding: 30, duration: 850 })
+    }
+  }, [s.selectedTerritoryId, ready])
 
   if (failed) return null // parent will show fallback
 
@@ -260,6 +408,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         <label><input type="checkbox" checked={layers.uncovered} onChange={e => setLayers(l => ({ ...l, uncovered: e.target.checked }))} /> Uncovered priority</label>
         <label><input type="checkbox" checked={layers.route} onChange={e => setLayers(l => ({ ...l, route: e.target.checked }))} /> Rep route <span className="muted">({focused?.initials})</span></label>
         <label><input type="checkbox" checked={layers.isochrone} onChange={e => setLayers(l => ({ ...l, isochrone: e.target.checked }))} /> Drive-time area</label>
+        <label><input type="checkbox" checked={layers.heatmap} onChange={e => setLayers(l => ({ ...l, heatmap: e.target.checked }))} /> Opportunity heatmap</label>
         <button className="lc-reset" onClick={() => { mapRef.current?.fitBounds(RICHMOND_BOUNDS, { padding: 30 }); actions.clearSelection() }}>Reset to market</button>
       </div>
       <div className="map-legend">

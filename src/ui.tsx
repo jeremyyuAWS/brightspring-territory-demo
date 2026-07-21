@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Status } from './types'
 
 export function StatusBadge({ status }: { status: Status }) {
@@ -48,6 +48,33 @@ export function LoadingSteps({ steps, done }: { steps: string[]; done: number })
       ))}
     </div>
   )
+}
+
+// animate a number toward its target when it changes (KPI count-up)
+export function useCountUp(target: number, ms = 650) {
+  const [val, setVal] = useState(target)
+  const fromRef = useRef(target)
+  useEffect(() => {
+    const from = fromRef.current
+    if (from === target) return
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setVal(from + (target - from) * eased)
+      if (t < 1) raf = requestAnimationFrame(tick)
+      else { fromRef.current = target; setVal(target) }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return val
+}
+
+export function AnimatedNumber({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
+  const v = useCountUp(value)
+  return <>{v.toFixed(decimals)}{suffix}</>
 }
 
 // runs a stepped choreography, calls onComplete after finishing
