@@ -38,6 +38,7 @@ export interface DemoState {
   planStrategy: string | null // §4 applied plan-optimization strategy
   calendarSynced: boolean
   mapProvider: 'leaflet' | 'mapbox'
+  placedRemaining: boolean
 }
 
 const SEED_VERSION = 'seed-v1'
@@ -76,11 +77,12 @@ function freshState(): DemoState {
     planStrategy: null,
     calendarSynced: false,
     mapProvider: 'leaflet',
+    placedRemaining: false,
   }
 }
 
 // ---- undo memory (kept outside serialized state) ----
-type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied' | 'planStrategy'>
+type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied' | 'planStrategy' | 'placedRemaining'>
 let undoSnapshot: UndoSlice | null = null
 function snapUndo(): UndoSlice {
   return {
@@ -91,6 +93,7 @@ function snapUndo(): UndoSlice {
     monthlyPlanApplied: state.monthlyPlanApplied,
     rescheduleApplied: state.rescheduleApplied,
     planStrategy: state.planStrategy,
+    placedRemaining: state.placedRemaining,
   }
 }
 
@@ -275,6 +278,13 @@ export const actions = {
   },
 
   setMapProvider(p: 'leaflet' | 'mapbox') { set({ mapProvider: p }) },
+
+  placeRemaining(accounts: { name: string }[]) {
+    undoSnapshot = snapUndo()
+    const tasks: FollowUpTask[] = accounts.map((a, i) => ({ id: `tk-place-${i}`, title: `Place & schedule ${a.name}`, accountName: a.name, dueDate: '2026-07-25', owner: 'Demo Manager', source: 'Coverage placement', done: false }))
+    addAudit({ actor: 'Demo Manager', action: `Placed ${accounts.length} remaining priority accounts`, detail: 'Simulated', after: `${accounts.map(a => a.name).join(', ')}` })
+    set({ placedRemaining: true, tasks: [...tasks, ...state.tasks], undoLabel: 'Undo placement' })
+  },
 
   simulateCalendarSync() {
     addAudit({ actor: 'Demo Manager', action: 'Calendar sync (Google / M365)', detail: 'Demo simulation · busy blocks imported, personal time protected' })
