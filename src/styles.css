@@ -325,6 +325,10 @@ th.th-sort:hover { color: var(--brand); }
 .tb-stat .v { font-size: 20px; font-weight: 750; }
 .tb-stat .l { font-size: 11px; color: var(--text-2); }
 .tb-workload { font-size: 12px; }
+.tb-warn { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; padding: 11px 13px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; font-size: 12.5px; line-height: 1.5; color: #7f1d1d; }
+.tb-warn .ico { font-size: 15px; line-height: 1.2; flex: none; }
+.tb-rec-btn { margin-top: 7px; border: 1px solid var(--brand); background: var(--brand); color: #fff; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; }
+.tb-rec-btn:hover { filter: brightness(1.08); }
 .tb-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: auto; }
 .zip-tt { font-size: 10px; }
 

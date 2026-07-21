@@ -40,7 +40,25 @@ export function ZipTerritoryBuilder({ onClose }: { onClose: () => void }) {
   const sel = stats(selTerr)
   const origSel = (() => { const zips = BASE_CELLS.filter(c => original[c.zip] === selTerr).map(c => c.zip); const accts = ACCOUNTS.filter(a => zips.includes(ACCT_ZIP[a.id])); return { zips: zips.length, accounts: accts.length } })()
   const rep = repById(territoryById(selTerr)!.repId)!
-  const cap = rep.capacityPct + (sel.accounts - origSel.accounts) * 4 // rough capacity impact
+  const acctDelta = sel.accounts - origSel.accounts
+  const cap = rep.capacityPct + acctDelta * 4 // rough capacity impact
+  const overloaded = cap > 100 && acctDelta > 0
+  // recommend the territory rep (other than the current one) with the most headroom
+  const recRep = REPS.filter(r => r.territoryId && r.id !== rep.id).sort((a, b) => a.capacityPct - b.capacityPct)[0]
+  const recCap = recRep ? recRep.capacityPct + acctDelta * 4 : 0
+
+  // move the newly-added ZIPs to the recommended rep's territory and focus it (preview the balanced option)
+  const assignToRec = () => {
+    if (!recRep) return
+    const recTerr = recRep.territoryId!
+    setAssign(prev => {
+      const next = { ...prev }
+      for (const c of BASE_CELLS) if (next[c.zip] === selTerr && original[c.zip] !== selTerr) next[c.zip] = recTerr
+      return next
+    })
+    setSelTerr(recTerr)
+    setSaved(false)
+  }
 
   const save = () => {
     actions.saveTerritoryEdit(territoryById(selTerr)!.name, `${origSel.zips} ZIPs · ${origSel.accounts} accts`, `${sel.zips} ZIPs · ${sel.accounts} accts · rep ${cap}%`)
@@ -79,6 +97,21 @@ export function ZipTerritoryBuilder({ onClose }: { onClose: () => void }) {
               <div className="tb-stat"><div className="v" style={{ color: cap > 100 ? 'var(--risk)' : 'inherit' }}>{cap}%</div><div className="l">Est. rep capacity {cap > 100 ? '⚠' : ''}</div></div>
             </div>
             <div className="tb-workload muted">Estimated workload ≈ {sel.workload} visits / week</div>
+
+            {overloaded && (
+              <div className="tb-warn">
+                <span className="ico">⚠</span>
+                <div>
+                  <b>Adding {acctDelta} account{acctDelta > 1 ? 's' : ''} would overload {rep.name.split(' ')[0]}</b> — capacity rises to <b>{cap}%</b>, past the 100% ceiling.
+                  {recRep && recCap <= 100 && (
+                    <>
+                      {' '}<b>{recRep.name.split(' ')[0]}</b> has the most headroom ({recRep.capacityPct}%) — assigning {sel.zips - origSel.zips > 1 ? 'these ZIPs' : 'this ZIP'} there keeps the market balanced.
+                      <div><button className="tb-rec-btn" onClick={assignToRec}>Assign to {recRep.name.split(' ')[0]} instead →</button></div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {saved
               ? <div className="callout" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}><span className="ico">✓</span><div>Simulation saved to the audit trail. Reversible via Undo. No production CRM or territory records were changed.</div></div>
