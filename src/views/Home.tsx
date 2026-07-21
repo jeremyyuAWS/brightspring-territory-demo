@@ -4,7 +4,7 @@ import { REPS, ACCOUNTS } from '../seed'
 import { TerritoryMapPanel } from '../components/TerritoryMapPanel'
 import { TerritoryBuilder } from '../components/TerritoryBuilder'
 import { CompareReps } from '../components/CompareReps'
-import { marketKpis, territoryRows, insights, territoryById, cohortFunnel } from '../selectors'
+import { marketKpis, territoryRows, insights, territoryById, cohortFunnel, metricsFor, statusFor, repById } from '../selectors'
 import type { MarketKpis } from '../selectors'
 import { StatusBadge, AnimatedNumber } from '../ui'
 import { RiskRecoveryCard, LoyaltyLossCard } from '../components/ReferralIntel'
@@ -69,31 +69,37 @@ export function Home() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="panel">
-            <div className="phead">
-              <h3>Management insights</h3>
-              <span className="badge sim">◆ AI-assisted</span>
-            </div>
-            <div className="pbody">
-              {ins.map(i => (
-                <div key={i.id} className={`insight ${s.selectedInsightId === i.id ? 'sel' : ''}`}
-                  onClick={() => actions.selectInsight(i.id, i.territoryId)}>
-                  <div className="row1">
-                    <span className={`sev ${i.severity}`} />
-                    <h4>{i.headline}</h4>
-                  </div>
-                  <div className="ev">{i.evidence}</div>
-                  <div className="act">
-                    {i.action === 'Optimize territories'
-                      ? <button className="btn sm primary" onClick={e => { e.stopPropagation(); actions.openBuilder() }}>{i.action} →</button>
-                      : i.action === 'Open account'
-                        ? <button className="btn sm" onClick={e => { e.stopPropagation(); actions.openAccount(i.accountIds[0]) }}>{i.action} →</button>
-                        : <button className="btn sm" onClick={e => { e.stopPropagation(); actions.selectInsight(i.id, i.territoryId) }}>{i.action} →</button>}
-                  </div>
+          {!selTerr && <ExecSummary applied={s.optimizationApplied} />}
+
+          {selTerr
+            ? <TerritorySummary onCompare={() => setCompareOpen(true)} />
+            : (
+              <div className="panel">
+                <div className="phead">
+                  <h3>Management insights</h3>
+                  <span className="badge sim">◆ AI-assisted</span>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="pbody">
+                  {ins.map(i => (
+                    <div key={i.id} className={`insight ${s.selectedInsightId === i.id ? 'sel' : ''}`}
+                      onClick={() => actions.selectInsight(i.id, i.territoryId)}>
+                      <div className="row1">
+                        <span className={`sev ${i.severity}`} />
+                        <h4>{i.headline}</h4>
+                      </div>
+                      <div className="ev">{i.evidence}</div>
+                      <div className="act">
+                        {i.action === 'Optimize territories'
+                          ? <button className="btn sm primary" onClick={e => { e.stopPropagation(); actions.openBuilder() }}>{i.action} →</button>
+                          : i.action === 'Open account'
+                            ? <button className="btn sm" onClick={e => { e.stopPropagation(); actions.openAccount(i.accountIds[0]) }}>{i.action} →</button>
+                            : <button className="btn sm" onClick={e => { e.stopPropagation(); actions.selectInsight(i.id, i.territoryId) }}>{i.action} →</button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
           <ReferralFunnelCard />
           <RiskRecoveryCard />
@@ -127,6 +133,76 @@ export function Home() {
       {compareOpen && <CompareReps onClose={() => setCompareOpen(false)} />}
       {s.zipBuilderOpen && <ZipTerritoryBuilder onClose={() => actions.closeZipBuilder()} />}
       <FacilityModal />
+    </div>
+  )
+}
+
+function ExecSummary({ applied }: { applied: boolean }) {
+  const lead = applied ? 'Richmond is balanced.' : 'Richmond needs one management intervention.'
+  const body = applied
+    ? 'South Richmond is back to Healthy and the capacity spread has tightened to 14 pts — no territory is currently At Risk.'
+    : 'South Richmond is under-covered because Jordan Ellis is overloaded (112% capacity, 9.7 drive hrs). East Richmond is approaching At Risk, while West and Central have room to absorb work.'
+  return (
+    <div className="exec-summary">
+      <span className="exec-tag">◆ Executive summary</span>
+      <p><b>{lead}</b> {body}</p>
+    </div>
+  )
+}
+
+function TerritorySummary({ onCompare }: { onCompare: () => void }) {
+  const s = useStore()
+  const t = territoryById(s.selectedTerritoryId!)
+  if (!t) return null
+  const applied = s.optimizationApplied
+  const m = metricsFor(t, applied)
+  const status = statusFor(t, applied)
+  const rep = repById(t.repId)
+  const inT = s.referrals.filter(r => r.territoryId === t.id)
+  const conv = inT.length ? Math.round(inT.filter(r => r.stage === 'Accepted' || r.stage === 'Admitted').length / inT.length * 100) : 0
+  const cause = status === 'At Risk'
+    ? `${m.uncoveredPriority} priority accounts lack a visit this month, and ${rep?.name.split(' ')[0]} has no usable capacity (${m.capacityPct}%).`
+    : status === 'Watch'
+      ? `Coverage is slipping (${m.priorityCoveragePct}%) with an uncovered priority account; ${rep?.name.split(' ')[0]} is near capacity.`
+      : `Coverage and capacity are on target — no intervention required.`
+  const correction = status === 'At Risk'
+    ? 'Move two accounts and one follow-up to adjacent representatives, then re-run the optimizer.'
+    : status === 'Watch'
+      ? 'Rebalance one account to a rep with headroom before it slips to At Risk.'
+      : 'Maintain cadence and apply spare capacity to nearby growth opportunities.'
+  const stat = (label: string, value: string, warn = false) => (
+    <div className="ts-stat"><span>{label}</span><b style={warn ? { color: 'var(--risk)' } : undefined}>{value}</b></div>
+  )
+  return (
+    <div className="panel">
+      <div className="phead">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><h3>{t.name}</h3><StatusBadge status={status} /></div>
+        <button className="iconbtn" onClick={() => actions.clearSelection()} aria-label="close">×</button>
+      </div>
+      <div className="pbody">
+        <div className="ts-rep">{rep?.name} · {m.accountCount} accounts</div>
+        <div className="ts-grid">
+          {stat('Priority coverage', `${m.priorityCoveragePct}%`, m.priorityCoveragePct < 65)}
+          {stat('Visits / target', `${m.visitsCompleted}/${m.visitsTarget}`)}
+          {stat('Active referrals', `${m.referrals}`)}
+          {stat('Conversion', `${conv}%`)}
+          {stat('Capacity', `${m.capacityPct}%`, m.capacityPct > 100)}
+          {stat('Drive hours', `${m.driveHrs} hrs/wk`, m.driveHrs > 8.5)}
+        </div>
+        <div className="ts-block">
+          <div className="ts-h">Primary cause</div>
+          <p>{cause}</p>
+        </div>
+        <div className="ts-block">
+          <div className="ts-h">Recommended correction</div>
+          <p>{correction}</p>
+        </div>
+        <div className="ts-actions">
+          <button className="btn sm primary" onClick={() => actions.openBuilder()}>Review proposal →</button>
+          <button className="btn sm" onClick={() => actions.setTab('plan')}>Open Plan</button>
+          <button className="btn sm" onClick={onCompare}>Compare reps</button>
+        </div>
+      </div>
     </div>
   )
 }

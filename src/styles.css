@@ -183,6 +183,24 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 .insight .ev { color: var(--text-2); font-size: 12.5px; margin: 5px 0 8px 19px; }
 .insight .act { margin-left: 19px; }
 
+/* ---------- executive summary ---------- */
+.exec-summary { background: linear-gradient(180deg, #f2f7fd, #eef4fb); border: 1px solid #cfe0f3; border-radius: 12px; padding: 13px 15px; }
+.exec-tag { font-size: 10.5px; font-weight: 750; color: var(--brand); text-transform: uppercase; letter-spacing: .05em; }
+.exec-summary p { font-size: 13px; line-height: 1.55; color: var(--text-2); margin: 5px 0 0; }
+.exec-summary p b { color: var(--text-1); }
+
+/* ---------- selected-territory summary ---------- */
+.ts-rep { font-size: 13px; color: var(--text-2); font-weight: 600; margin-bottom: 12px; }
+.ts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 14px; }
+.ts-stat { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 6px; font-size: 13px; }
+.ts-stat span { color: var(--text-3); }
+.ts-stat b { font-weight: 700; }
+.ts-block { margin-bottom: 12px; }
+.ts-block .ts-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 700; margin-bottom: 3px; }
+.ts-block p { font-size: 13px; line-height: 1.5; color: var(--text-2); margin: 0; }
+.ts-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border); margin-top: 2px; }
+.ts-actions { padding-top: 12px; }
+
 /* ---------- drawer ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(15,23,42,.35); z-index: 50; animation: fade .15s; }
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
