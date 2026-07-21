@@ -10,10 +10,19 @@ Every operation is deterministic and reversible.
 **Live demo:** https://brightspring-territory-demo.netlify.app
 **Repository:** https://github.com/jeremyyuAWS/brightspring-territory-demo
 
-_The hosted demo runs on the built-in inline-SVG map (no token embedded in the public bundle).
-To enable the live Mapbox basemap on the deployment, set `VITE_MAPBOX_ACCESS_TOKEN` in Netlify
-(Site settings → Environment variables) and add the `*.netlify.app` domain to the token's URL
-restrictions in your Mapbox account._
+_The hosted demo runs the **live Mapbox map** (real Richmond basemap). The public `pk.` token is
+embedded in the client bundle at build time — this is normal for client-side Mapbox; the security
+comes from **URL-restricting the token to your deploy domain** in the Mapbox account, not from
+hiding it. If no token were present, the app degrades to the built-in inline-SVG fallback with no
+broken states._
+
+**Deploy notes**
+- Local dev reads the token from `.env.local` (gitignored). The deploy is built with that token via
+  `npm run build` and `netlify deploy --prod --dir=dist --no-build`.
+- Alternatively, set `VITE_MAPBOX_ACCESS_TOKEN` in **Netlify → Site settings → Environment variables**
+  and let Netlify build from the repo — the token stays out of git and is managed in Netlify.
+- Either way: **restrict the token to `brightspring-territory-demo.netlify.app`** (and `localhost` for
+  dev) in the Mapbox account so the public token can't be reused elsewhere.
 
 ## Run it
 
