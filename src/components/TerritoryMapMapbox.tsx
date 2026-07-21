@@ -135,6 +135,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map = new mapboxgl.Map({
         container: containerRef.current,
         style: 'mapbox://styles/mapbox/light-v11',
+        projection: 'mercator', // mapbox-gl v3 defaults to globe, whose unproject() returns NaN and
+        // throws "Invalid LngLat (NaN, NaN)" on every mousemove/click — which killed drill-down. Force flat mercator.
         center: RICHMOND_CENTER,
         zoom: 10.4,
         pitch: 0, // flat: what you see is what you click (predictable territory drill-down)
@@ -168,6 +170,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       } catch { return } // style not ready yet — the next styledata will retry
       setupDone = true
       clearTimeout(failTimer)
+      try { map.setProjection('mercator') } catch { /* older api */ } // ensure the style can't re-enable globe
       map.fitBounds(RICHMOND_BOUNDS, { padding: 30, duration: 0 })
 
       map.addSource('territory-labels', { type: 'geojson', data: territoryLabelsFC(applied) as any })
