@@ -59,6 +59,7 @@ export function LoyaltyLossCard() {
             <div className="loyalty-body">
               Averaged <b>{src.avgPerMonth}/mo</b> → <b style={{ color: 'var(--risk)' }}>0 in {src.daysSinceLast} days</b>
               {src.adminChangeDays ? `, following an administrator change ${src.adminChangeDays} days ago.` : '.'}
+              {src.competitor && <div className="loyalty-competitor">⚔ <b>{src.competitor.name}</b> {src.competitor.note}.</div>}
               <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Rep: {src.currentRep} · recoverable ≈ {src.recoverablePerMonth}/mo <span className="badge sim" style={{ fontSize: 10 }}>◆ est.</span></div>
             </div>
             <div className="loyalty-win">→ {src.winBack}</div>

@@ -73,14 +73,15 @@ export interface LoyaltySource {
   currentRep: string
   adminChangeDays?: number
   competitorSignal: boolean
+  competitor?: { name: string; note: string } // named competitor believed to be taking the volume
   recoverablePerMonth: number
   winBack: string
 }
 
 export const LOYALTY_SOURCES: LoyaltySource[] = [
-  { id: 'ls-woodhaven', name: 'Woodhaven Medical Center', territoryId: 't-south', avgPerMonth: 6, daysSinceLast: 74, currentRep: 'Jordan Ellis', adminChangeDays: 68, competitorSignal: true, recoverablePerMonth: 4, winBack: 'Coordinated intro to the new administrator + service review; add to next planning period' },
+  { id: 'ls-woodhaven', name: 'Woodhaven Medical Center', territoryId: 't-south', avgPerMonth: 6, daysSinceLast: 74, currentRep: 'Jordan Ellis', adminChangeDays: 68, competitorSignal: true, competitor: { name: 'Encompass Home Health', note: 'named preferred provider after the administrator change — ~4 discharges/mo diverted' }, recoverablePerMonth: 4, winBack: 'Coordinated intro to the new administrator + service review; add to next planning period' },
   { id: 'ls-stonegate', name: 'Stonegate Physicians', territoryId: 't-central', avgPerMonth: 3, daysSinceLast: 52, currentRep: 'Maya Chen', competitorSignal: false, recoverablePerMonth: 2, winBack: 'Re-engage discharge planner; share updated outcomes data' },
-  { id: 'ls-chesterfield', name: 'Chesterfield Medical Center', territoryId: 't-east', avgPerMonth: 4, daysSinceLast: 41, currentRep: 'Taylor Brooks', adminChangeDays: 30, competitorSignal: true, recoverablePerMonth: 3, winBack: 'Executive-level relationship reset; competitor displacement play' },
+  { id: 'ls-chesterfield', name: 'Chesterfield Medical Center', territoryId: 't-east', avgPerMonth: 4, daysSinceLast: 41, currentRep: 'Taylor Brooks', adminChangeDays: 30, competitorSignal: true, competitor: { name: 'Amedisys', note: 'gained ~3 referrals/mo since the new DON arrived; running a displacement play' }, recoverablePerMonth: 3, winBack: 'Executive-level relationship reset; competitor displacement play' },
 ]
 
 export function dormantSources(): LoyaltySource[] {
