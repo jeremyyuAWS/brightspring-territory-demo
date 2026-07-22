@@ -171,7 +171,7 @@ function TerritorySummary({ onCompare }: { onCompare: () => void }) {
   const cause = status === 'At Risk'
     ? `${m.uncoveredPriority} priority accounts lack a visit this month, and ${rep?.name.split(' ')[0]} has no usable capacity (${m.capacityPct}%).`
     : status === 'Watch'
-      ? `Coverage is slipping (${m.priorityCoveragePct}%) with an uncovered priority account; ${rep?.name.split(' ')[0]} is near capacity.`
+      ? `Visit attainment is lagging (${m.visitsCompleted}/${m.visitsTarget}) and referral momentum is soft; ${rep?.name.split(' ')[0]} is near capacity (${m.capacityPct}%).`
       : `Coverage and capacity are on target — no intervention required.`
   const correction = status === 'At Risk'
     ? 'Move two accounts and one follow-up to adjacent representatives, then re-run the optimizer.'

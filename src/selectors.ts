@@ -126,8 +126,8 @@ export interface Insight {
 export function insights(s: DemoState): Insight[] {
   if (s.optimizationApplied) {
     return [
-      { id: 'i-ok', severity: 'low', territoryId: 't-south', headline: 'South Richmond coverage restored to Healthy', evidence: 'Priority coverage 54% → 86%; drive time 9.7 → 7.1 hrs after applying the Balanced proposal.', action: 'Review in Plan → Month', accountIds: [] },
-      { id: 'i-ok2', severity: 'low', territoryId: 't-east', headline: 'East Richmond moved out of Watch', evidence: 'Priority coverage 68% → 85% after assigning unowned accounts by zip adjacency.', action: 'Confirm rep capacity', accountIds: [] },
+      { id: 'i-ok', severity: 'low', territoryId: 't-south', headline: 'South Richmond coverage restored to Healthy', evidence: 'Priority coverage 54% → 85%; drive time 9.7 → 7.1 hrs after applying the Balanced proposal.', action: 'Review in Plan → Month', accountIds: [] },
+      { id: 'i-ok2', severity: 'low', territoryId: 't-east', headline: 'East Richmond moved out of Watch', evidence: 'Visit attainment 13/18 → 16/18 and referral momentum recovered after the rebalance; coverage steady at 86%.', action: 'Confirm rep capacity', accountIds: [] },
       { id: 'i-ok3', severity: 'low', territoryId: 't-central', headline: 'Elmington Rehabilitation retained under Maya Chen', evidence: 'Strategic relationship preserved; Central capacity 76% → 78%.', action: 'Open account', accountIds: [ELMINGTON_ID] },
     ]
   }
@@ -142,7 +142,7 @@ export function insights(s: DemoState): Insight[] {
     {
       id: 'i-2', severity: 'medium', territoryId: 't-east',
       headline: 'East Richmond trending toward At Risk',
-      evidence: 'Coverage 68% and an uncovered priority account; visit attainment 13/18. Taylor Brooks at 94% capacity.',
+      evidence: 'Visit attainment 13/18 and lagging referral momentum; Taylor Brooks at 94% capacity with 8.1 drive hrs/wk. One uncovered priority account remains.',
       action: 'Rebalance load', accountIds: ACCOUNTS.filter(a => a.territoryId === 't-east' && a.isPriority && !a.covered).map(a => a.id),
     },
     {
