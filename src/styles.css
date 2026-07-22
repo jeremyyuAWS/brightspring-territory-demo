@@ -619,6 +619,7 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 .mp-cl-pipe { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); font-weight: 700; color: var(--brand); }
 .mp-cl-hint { margin-top: 3px; font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
 .legend-line { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend-arrow { color: #0d9488; font-size: 12px; font-weight: 700; }
 .map-legend .lg-head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 700; }
 
 /* collapsible legend — closed by default so it doesn't permanently eat map real estate */

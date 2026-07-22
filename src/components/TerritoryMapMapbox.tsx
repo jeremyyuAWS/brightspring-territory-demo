@@ -43,21 +43,25 @@ function territoriesFC(applied: boolean): GeoJSONFC {
     }
   })
 }
-function territoryLabelsFC(applied: boolean): GeoJSONFC {
+function territoryLabelsFC(applied: boolean, referralMode = false, referrals: Referral[] = []): GeoJSONFC {
   const labels = labelPoints()
   return {
     type: 'FeatureCollection',
     features: TERRITORIES.map(t => {
       const m = applied ? t.optimized : t.baseline
       const rep = repById(t.repId)?.name ?? ''
+      let detail: string
+      if (referralMode) {
+        const inT = referrals.filter(r => r.territoryId === t.id)
+        const conv = inT.length ? Math.round(inT.filter(r => r.stage === 'Accepted' || r.stage === 'Admitted').length / inT.length * 100) : 0
+        detail = `${rep} · ${inT.length} referrals · ${conv}% conv`
+      } else {
+        detail = `${rep} · ${m.priorityCoveragePct}% covered`
+      }
       return {
         type: 'Feature' as const,
         geometry: { type: 'Point', coordinates: labels[t.id] },
-        properties: {
-          territoryId: t.id,
-          name: t.name,
-          detail: `${rep} · ${m.priorityCoveragePct}% covered`,
-        },
+        properties: { territoryId: t.id, name: t.name, detail },
       }
     }),
   }
@@ -120,6 +124,8 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
   const [layers, setLayers] = useState<Layers>(PRESETS[0].layers)
   const [zoom, setZoom] = useState(10.4)
   const [legendOpen, setLegendOpen] = useState(false)
+  // open the legend automatically in Referrals mode — that's exactly when it needs explaining
+  useEffect(() => { if (preset === 'referrals') setLegendOpen(true) }, [preset])
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const appliedRef = useRef(applied)
   appliedRef.current = applied
@@ -205,6 +211,15 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#1d4ed8', 'line-width': 2.5, 'line-dasharray': [2, 1] } })
       // §13 referral flow lines (source → service location), colored by status, width by volume
       map.addLayer({ id: 'flow-line', type: 'line', source: 'flow', layout: { 'line-cap': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.75 } })
+      // directional arrowheads along each flow (source → BrightSpring service), so referral direction is unambiguous
+      map.addLayer({
+        id: 'flow-arrow', type: 'symbol', source: 'flow',
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 55, 'text-field': '▶', 'text-size': 11,
+          'text-keep-upright': false, 'text-rotation-alignment': 'map', 'text-allow-overlap': true, 'text-ignore-placement': true,
+        },
+        paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 },
+      })
       map.addLayer({ id: 'flow-src-pt', type: 'circle', source: 'flow-src', paint: { 'circle-radius': 6, 'circle-color': '#fff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3 } })
 
       // clusters — size still = account count; a RING now encodes the most urgent thing
@@ -455,17 +470,19 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     let list = ACCOUNTS
     if (repFilter !== 'all') list = list.filter(a => effectiveRepId(a, applied) === repFilter)
     if (selId) list = list.filter(a => effectiveTerritoryId(a, applied) === selId)
+    const referralMode = preset === 'referrals'
       ; (map.getSource('territories') as mapboxgl.GeoJSONSource)?.setData(territoriesFC(applied) as any)
-      ; (map.getSource('territory-labels') as mapboxgl.GeoJSONSource)?.setData(territoryLabelsFC(applied) as any)
+      ; (map.getSource('territory-labels') as mapboxgl.GeoJSONSource)?.setData(territoryLabelsFC(applied, referralMode, s.referrals) as any)
       ; (map.getSource('accounts') as mapboxgl.GeoJSONSource)?.setData(accountsFC(list, applied) as any)
       ; (map.getSource('accounts-raw') as mapboxgl.GeoJSONSource)?.setData(accountsFC(list, applied) as any)
 
     map.setFilter('territory-selected', ['==', ['get', 'territoryId'], selId ?? '__none__'])
 
-    // territory fill: conversion choropleth, at-risk emphasis, selection dim, or base health
-    if (kpi === 'conversion') {
+    // territory fill: in Referrals mode (or the conversion KPI) color by referral conversion,
+    // so the fill answers "where are referrals converting?" instead of coverage health
+    if (kpi === 'conversion' || referralMode) {
       map.setPaintProperty('territory-fill', 'fill-color', conversionColorExpr(s.referrals))
-      map.setPaintProperty('territory-fill', 'fill-opacity', 0.42)
+      map.setPaintProperty('territory-fill', 'fill-opacity', selId ? ['case', ['==', ['get', 'territoryId'], selId], 0.5, 0.22] : 0.4)
     } else {
       map.setPaintProperty('territory-fill', 'fill-color', ['get', 'color'])
       if (kpi === 'atRisk') {
@@ -490,7 +507,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
 
     // focus ring on insight-highlighted accounts
     map.setFilter('account-focus', hlIds.length ? ['in', ['get', 'accountId'], ['literal', hlIds]] : ['==', ['get', 'accountId'], '__none__'])
-  }, [applied, s.selectedTerritoryId, s.filters.repId, s.selectedKpi, s.selectedInsightId, s.referrals, layers.uncovered, ready])
+  }, [applied, s.selectedTerritoryId, s.filters.repId, s.selectedKpi, s.selectedInsightId, s.referrals, layers.uncovered, preset, ready])
 
   // overlays
   useEffect(() => {
@@ -570,7 +587,19 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
         <button className="map-legend-toggle" onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen}>
           {legendOpen ? '▾' : '▸'} Legend
         </button>
-        {legendOpen && (
+        {legendOpen && (preset === 'referrals' ? (
+          <div className="map-legend">
+            <span className="lg lg-head">Territory fill = referral conversion</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#16a34a' }} /> Strong (≥55%)</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#d99a22' }} /> Below target</span>
+            <span className="lg"><span className="legend-sw" style={{ background: '#c74634' }} /> At-risk (&lt;25%)</span>
+            <span className="lg lg-head" style={{ marginLeft: 6 }}>Flow</span>
+            <span className="lg"><span className="legend-arrow">▶</span> Referral direction (source → BrightSpring)</span>
+            <span className="lg">line width = referral volume</span>
+            <span className="lg"><span className="legend-dot" style={{ width: 11, height: 11, background: '#fff', border: '2px solid #0d9488' }} /> Referral source</span>
+            <span className="lg muted">Hover a flow or source for volume &amp; status · label shows referrals · conversion</span>
+          </div>
+        ) : (
           <div className="map-legend">
             <span className="lg lg-head">Territory fill</span>
             <span className="lg"><span className="legend-sw" style={{ background: '#2E7D5B' }} /> Healthy</span>
@@ -591,7 +620,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
             )}
             <span className="lg muted">Dot size = opportunity · click a territory to drill in</span>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
