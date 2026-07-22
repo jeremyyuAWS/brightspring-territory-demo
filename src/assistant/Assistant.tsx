@@ -3,7 +3,7 @@ import { useStore, actions, type DemoState } from '../store'
 import type { ChatMessage, AssistantProposal } from '../types'
 import { runEngine, detectChips, SUGGESTED_PROMPTS } from './engine'
 import { ACCOUNTS, OPTIMIZED_CAPACITY, REPS } from '../seed'
-import { territoryById, repById, metricsFor, accountCovered } from '../selectors'
+import { territoryById, repById, metricsFor, accountCovered, facilitySize } from '../selectors'
 
 // ---- map-context awareness: chips + grounded answers about the current selection ----
 function mapContext(s: DemoState) {
@@ -36,7 +36,7 @@ function contextAnswer(text: string, s: DemoState): string | null {
   const otherRep = REPS.filter(r => r.territoryId && r.id !== rep?.id).sort((a, b) => a.capacityPct - b.capacityPct)[0]
   if (acct && /why.*(priority|high priority)/.test(t)) {
     const covered = accountCovered(acct, applied)
-    return `**${acct.name}** is ${acct.priority} priority because of its size and opportunity: ${acct.beds} beds, ${acct.facilityType}, opportunity score ${acct.opportunityScore}. It's currently **${covered ? 'covered' : 'uncovered'}**, ${acct.lastContactDays} days since the last meaningful touch${acct.whitespace.length ? `, with **${acct.whitespace[0]}** whitespace still open` : ''}.`
+    return `**${acct.name}** is ${acct.priority} priority because of its size and opportunity: ${facilitySize(acct)}, ${acct.facilityType}, opportunity score ${acct.opportunityScore}. It's currently **${covered ? 'covered' : 'uncovered'}**, ${acct.lastContactDays} days since the last meaningful touch${acct.whitespace.length ? `, with **${acct.whitespace[0]}** whitespace still open` : ''}.`
   }
   if (acct && /(next best action|next action|do next|should.*do)/.test(t)) {
     const covered = accountCovered(acct, applied)

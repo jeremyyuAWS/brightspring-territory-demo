@@ -117,6 +117,11 @@ const PLAN: Record<string, { tier1: number; tier2: number; tier3: number; uncove
 
 function tierFromScore(s: number): OppTier { return s >= 78 ? 'Tier 1' : s >= 55 ? 'Tier 2' : 'Tier 3' }
 function bandFromScore(s: number): OpportunityBand { return s >= 70 ? 'high' : s >= 45 ? 'medium' : 'low' }
+// realistic size by facility type; Physician Group has no beds — its `beds` value holds provider count (rendered via facilitySize())
+const BED_RANGE: Record<string, [number, number]> = {
+  'Skilled Nursing Facility': [60, 180], 'Rehabilitation Center': [40, 140], 'Assisted Living': [40, 120],
+  'Hospital Discharge': [180, 420], 'Physician Group': [8, 26], 'Memory Care': [24, 84], 'Senior Living': [80, 240],
+}
 
 function genAccounts(): Account[] {
   const rnd = mulberry32(20260722)
@@ -160,7 +165,7 @@ function genAccounts(): Account[] {
       out.push({
         id: `a-${t.short.toLowerCase()}-${i}`, name, facilityType: ft, territoryId: t.id,
         coord: { x: Math.round(x), y: Math.round(y) }, lng: +lng.toFixed(5), lat: +lat.toFixed(5),
-        beds: 20 + Math.floor(rnd() * 160),
+        beds: (() => { const [lo, hi] = BED_RANGE[ft] ?? [40, 160]; return lo + Math.floor(rnd() * (hi - lo)) })(),
         priority, priorityTier: tier, isPriority, relationshipStatus, opportunityBand: bandFromScore(opp),
         services, whitespace: eligible, lastContactDays: days, opportunityScore: opp,
         oppTier: tierFromScore(opp), visitFresh: fresh, referralActive: rnd() < 0.35,
@@ -266,7 +271,6 @@ export const DEALS: Deal[] = [...ELMINGTON_DEALS, ...OTHER_ACCOUNTS.flatMap(genD
 
 // ---------- referrals ----------
 const REF_STAGES_POS: Referral['stage'][] = ['Received', 'Contact Attempted', 'Met Patient/Family', 'Evaluating', 'Accepted', 'Admitted']
-const SOURCE_ORGS = ['Elmington Rehabilitation', 'Riverbend Medical Center', 'Oak Hollow Skilled Nursing', 'Stonegate Physicians', 'Crestview Assisted Living', 'Bon Air Senior Living', 'Chesterfield Medical Center', 'Tuckahoe Rehabilitation']
 
 function genReferrals(): Referral[] {
   const rnd = mulberry32(90210)
@@ -297,7 +301,7 @@ function genReferrals(): Referral[] {
     const recv = new Date(2026, 6, 1 + Math.floor(rnd() * 20))
     const fu = new Date(recv.getTime() + (3 + Math.floor(rnd() * 10)) * 86400000)
     out.push({
-      id: `R-${1043 + i}`, accountId: acct.id, sourceOrg: SOURCE_ORGS[Math.floor(rnd() * SOURCE_ORGS.length)],
+      id: `R-${1043 + i}`, accountId: acct.id, sourceOrg: acct.name, // the account IS the referring facility
       serviceLine: rnd() < 0.6 ? 'Home Health' : 'Hospice', receivedDate: recv.toISOString().slice(0, 10),
       territoryId: t.id, repId: rep.id, stage, metFamily: stage === 'Received' || stage === 'Contact Attempted' ? 'Not Yet' : rnd() < 0.7 ? 'Yes' : 'No',
       notes: '', followUpDate: fu.toISOString().slice(0, 10), owner: rep.name,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore, actions } from '../store'
 import { ACCOUNTS, CONTACTS, ACTIVITIES, DEALS, TERRITORIES, ELMINGTON_ID } from '../seed'
-import { effectiveTerritoryId, effectiveRepId, accountCovered, territoryById, repById, cohortFunnel, FUNNEL_ORDER } from '../selectors'
+import { effectiveTerritoryId, effectiveRepId, accountCovered, territoryById, repById, cohortFunnel, FUNNEL_ORDER, facilitySize, dischargeNoun } from '../selectors'
 import type { Account, Priority, ReferralStage } from '../types'
 import { Drawer } from '../ui'
 import { ReferralForm } from '../components/ReferralForm'
@@ -102,7 +102,7 @@ function AccountDetail({ id }: { id: string }) {
                 {accountCovered(a, applied) ? <span className="badge healthy">Covered</span> : <span className="badge risk">Uncovered</span>}
               </div>
               <div className="muted" style={{ marginTop: 4 }}>
-                {a.facilityType} · {a.beds} beds · {t.name} · Owner: {rep.name}
+                {a.facilityType} · {facilitySize(a)} · {t.name} · Owner: {rep.name}
                 {applied && a.strategic && <span className="badge sim" style={{ marginLeft: 8 }}>◆ Reassigned to {rep.name}</span>}
               </div>
             </div>
@@ -150,7 +150,7 @@ function Overview({ a, tName, repName }: { a: Account; tName: string; repName: s
           <dt>Territory</dt><dd>{tName}</dd>
           <dt>Last touch</dt><dd>{a.lastContactDays} days ago</dd>
           <dt>Opportunity score</dt><dd>{a.opportunityScore} ({a.oppTier})</dd>
-          <dt>Facility</dt><dd>{a.facilityType} · {a.beds} beds</dd>
+          <dt>Facility</dt><dd>{a.facilityType} · {facilitySize(a)}</dd>
         </dl>
       </div>
       <div>
@@ -196,7 +196,7 @@ function accountForecast(a: Account) {
   return {
     low: Math.max(1, base - 1), high: base + 1, window: 'next 30 days', confidence: conf,
     evidence: [
-      { label: 'Facility capacity', value: `${a.beds} beds · ${a.facilityType.toLowerCase()} discharge volume`, positive: true },
+      { label: 'Facility capacity', value: `${facilitySize(a)} · ${a.facilityType.toLowerCase()} ${dischargeNoun(a)} volume`, positive: true },
       { label: 'Relationship', value: a.relationshipStatus === 'at_risk' ? 'Cooling — needs attention' : 'Engaged decision-makers', positive: a.relationshipStatus !== 'at_risk' },
       { label: 'Recent activity', value: a.lastContactDays <= 21 ? `Visited ${a.lastContactDays}d ago` : `No visit in ${a.lastContactDays}d`, positive: a.lastContactDays <= 21 },
       { label: 'Service-line fit', value: a.whitespace.length ? `${a.whitespace[0]} whitespace open` : 'Core services penetrated', positive: a.whitespace.length > 0 },

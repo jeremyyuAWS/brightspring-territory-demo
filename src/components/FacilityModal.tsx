@@ -1,6 +1,6 @@
 import { actions, useStore } from '../store'
 import { ACCOUNTS, OPTIMIZED_CAPACITY } from '../seed'
-import { repById, territoryById, accountCovered } from '../selectors'
+import { repById, territoryById, accountCovered, facilitySize, dischargeNoun } from '../selectors'
 import type { Account } from '../types'
 
 const REL_LABEL: Record<string, string> = { current: 'Current customer', growth: 'Growth opportunity', prospect: 'Prospect', at_risk: 'At-risk relationship' }
@@ -25,7 +25,7 @@ function forecast(a: Account) {
   conf = Math.max(40, Math.min(88, conf))
   const dm = decisionMaker(a)
   const evidence = [
-    { label: 'Facility capacity', value: `${a.beds} beds · ${a.facilityType.toLowerCase()} discharge volume`, positive: true },
+    { label: 'Facility capacity', value: `${facilitySize(a)} · ${a.facilityType.toLowerCase()} ${dischargeNoun(a)} volume`, positive: true },
     { label: 'Relationship', value: a.relationshipStatus === 'at_risk' ? 'Relationship cooling — needs attention' : `${dm.role} engaged (${dm.tenure}-yr tenure)`, positive: a.relationshipStatus !== 'at_risk' },
     { label: 'Recent activity', value: a.lastContactDays <= 14 ? `Visited ${a.lastContactDays}d ago` : `No visit in ${a.lastContactDays}d`, positive: a.lastContactDays <= 21 },
     { label: 'Service-line fit', value: a.whitespace.length ? `${a.whitespace[0]} whitespace open` : 'Core services penetrated', positive: a.whitespace.length > 0 },
@@ -59,7 +59,7 @@ export function FacilityModal() {
         <div className="fac-head">
           <div>
             <div className="fac-title">{a.name}</div>
-            <div className="fac-sub">{a.facilityType} · {a.beds} beds · {territoryById(a.territoryId)!.name}</div>
+            <div className="fac-sub">{a.facilityType} · {facilitySize(a)} · {territoryById(a.territoryId)!.name}</div>
           </div>
           <button className="iconbtn" onClick={() => actions.closeFacility()}>×</button>
         </div>

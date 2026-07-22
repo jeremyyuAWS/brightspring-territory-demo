@@ -8,6 +8,15 @@ import {
 export function repById(id: string) { return REPS.find(r => r.id === id) }
 export function territoryById(id: string) { return TERRITORIES.find(t => t.id === id) }
 
+// facility size label — physician groups have providers (outpatient), everything else has beds
+export function facilitySize(a: Account): string {
+  return a.facilityType === 'Physician Group' ? `${a.beds}-provider group` : `${a.beds} beds`
+}
+// referral-volume noun — physician groups refer, facilities discharge
+export function dischargeNoun(a: Account): string {
+  return a.facilityType === 'Physician Group' || a.facilityType === 'Hospital Discharge' ? 'referral' : 'discharge'
+}
+
 export function metricsFor(t: Territory, applied: boolean): TerritoryMetrics {
   return applied ? t.optimized : t.baseline
 }
