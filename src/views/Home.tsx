@@ -21,7 +21,6 @@ const KPI_LABEL: Record<string, string> = {
 
 export function Home() {
   const s = useStore()
-  const [compareOpen, setCompareOpen] = useState(false)
   const kpis = marketKpis(s)
   const rows = territoryRows(s)
   const ins = insights(s)
@@ -81,7 +80,7 @@ export function Home() {
           {s.repDrillId
             ? <RepIntel />
             : selTerr
-            ? <TerritorySummary onCompare={() => setCompareOpen(true)} />
+            ? <TerritorySummary onCompare={() => actions.openCompare()} />
             : (
               <div className="panel">
                 <div className="phead">
@@ -117,7 +116,7 @@ export function Home() {
           <div className="panel">
             <div className="phead"><h3>Leadership actions</h3></div>
             <div className="pbody" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button className="btn" onClick={() => setCompareOpen(true)}>⇄ Compare reps</button>
+              <button className="btn" onClick={() => actions.openCompare()}>⇄ Compare reps</button>
               <button className="btn" onClick={() => actions.exportSnapshot()}>⇩ Export leadership snapshot</button>
               <button className="btn ghost" onClick={() => actions.simulateSync()}>⟳ Simulate Salesforce sync</button>
               {s.audit.length > 0 && (
@@ -139,7 +138,7 @@ export function Home() {
       </div>
 
       {s.builderOpen && <TerritoryBuilder />}
-      {compareOpen && <CompareReps onClose={() => setCompareOpen(false)} />}
+      {s.compareOpen && <CompareReps onClose={() => actions.closeCompare()} />}
       {s.zipBuilderOpen && <ZipTerritoryBuilder onClose={() => actions.closeZipBuilder()} />}
       <FacilityModal />
     </div>
@@ -395,7 +394,7 @@ function ScoreRowGroup({ r, isOpen, selected, onToggle, onSelect }: {
           <button className={'row-exp' + (isOpen ? ' open' : '')} onClick={e => { e.stopPropagation(); onToggle() }} aria-label="expand">›</button>
         </td>
         <td><span className="terr-dot" style={{ background: r.territory.color }} />{r.territory.name}</td>
-        <td>{r.repName}</td>
+        <td><button className="rep-link" onClick={e => { e.stopPropagation(); actions.openRepDrill(r.territory.repId) }}>{r.repName}</button></td>
         <td className="num">{r.metrics.accountCount}</td>
         <td className="num">{r.metrics.priorityCoveragePct}%</td>
         <td className="num">{r.metrics.visitsCompleted}/{r.metrics.visitsTarget}</td>

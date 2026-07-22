@@ -102,8 +102,9 @@ export function RepIntel() {
 
         <div className="ts-actions">
           <button className="btn sm primary" onClick={() => actions.setTab('today')}>Open Today →</button>
-          <button className="btn sm" onClick={() => actions.setTab('plan')}>Open Plan</button>
+          <button className="btn sm" onClick={() => actions.openCompare()}>Compare rep</button>
           <button className="btn sm" onClick={() => actions.openBuilder()}>Rebalance load</button>
+          <button className="btn sm" onClick={() => actions.toggleAssistant(true)}>Ask Copilot</button>
         </div>
       </div>
     </div>

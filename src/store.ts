@@ -28,6 +28,7 @@ export interface DemoState {
   facilityId: string | null
   repDrillId: string | null // rep whose Intelligence drawer is open (map-level rep drill)
   fromAccountId: string | null // account we cross-drilled from (kept highlighted in the rep drawer)
+  compareOpen: boolean
   // undo: snapshot of the reversible slice captured before the last op
   undoLabel: string | null
   // ---- AI copilot ----
@@ -73,6 +74,7 @@ function freshState(): DemoState {
     facilityId: null,
     repDrillId: null,
     fromAccountId: null,
+    compareOpen: false,
     undoLabel: null,
     assistantOpen: false,
     memory: [],
@@ -172,6 +174,8 @@ export const actions = {
     set({ repDrillId: repId, fromAccountId: fromAcct, facilityId: null, selectedTerritoryId: terr, selectedInsightId: null, selectedKpi: null, tab: 'home' })
   },
   closeRepDrill() { set({ repDrillId: null, fromAccountId: null }) },
+  openCompare() { set({ compareOpen: true }) },
+  closeCompare() { set({ compareOpen: false }) },
 
   applyOptimization() {
     undoSnapshot = snapUndo()
