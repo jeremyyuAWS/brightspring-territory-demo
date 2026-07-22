@@ -174,26 +174,95 @@ function genAccounts(): Account[] {
 export const ACCOUNTS: Account[] = genAccounts()
 export const ELMINGTON_ID = ACCOUNTS.find(a => a.name === 'Elmington Rehabilitation')!.id
 
-// ---------- contacts / activities / deals for Elmington ----------
-export const CONTACTS: Contact[] = [
+// ---------- contacts / activities / deals ----------
+// Hand-crafted hero data for Elmington + deterministic synthetic data for every OTHER account,
+// so every Account 360 tab is populated (no empty "no data" states anywhere in the demo).
+function acctSeed(id: string) { let h = 2166136261; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619) } return (h >>> 0) || 1 }
+const FIRST_NAMES = ['Angela', 'Marcus', 'Priya', 'Denise', 'Robert', 'Lena', 'Carlos', 'Grace', 'Nina', 'Omar', 'Sophia', 'Derek', 'Talia', 'Victor', 'Renee', 'Malik', 'Joan', 'Felix', 'Carmen', 'Blake', 'Rosa', 'Hank', 'Yara', 'Devon']
+const LAST_NAMES = ['Reyes', 'Cole', 'Nguyen', 'Barnes', 'Ellison', 'Okafor', 'Halstead', 'Vaughn', 'Meadows', 'Pierce', 'Bryant', 'Sandoval', 'Chase', 'Delgado', 'Frost', 'Whitaker', 'Novak', 'Iqbal', 'Beaumont', 'Ramsey', 'Salazar', 'Kimura', 'Odom', 'Pruitt']
+const CONTACT_ROLES = ['Administrator', 'Director of Nursing (DON)', 'Discharge Planner', 'Case Manager', 'Medical Director', 'Social Worker', 'Referral Coordinator']
+function repNameForAcct(a: Account) { return REPS.find(r => r.territoryId === a.territoryId)?.name ?? 'Unassigned' }
+function isoDaysAgo(n: number) { return new Date(Date.UTC(2026, 6, 21) - n * 86400000).toISOString().slice(0, 10) }
+function pickAt<T>(arr: T[], seed: number) { return arr[seed % arr.length] }
+
+function genContactsFor(a: Account): Contact[] {
+  const rnd = mulberry32(acctSeed(a.id)); const seed = acctSeed(a.id)
+  const n = 2 + Math.floor(rnd() * 3) // 2–4
+  const picks = [0, 1] // Administrator + DON always
+  while (picks.length < n) { const r = 2 + Math.floor(rnd() * 5); if (!picks.includes(r)) picks.push(r) }
+  return picks.map((ri, i) => {
+    let rel: Contact['relationship']
+    if (a.relationshipStatus === 'at_risk') rel = i === 0 ? 'At Risk' : (rnd() < 0.5 ? 'Neutral' : 'At Risk')
+    else if (a.relationshipStatus === 'current') rel = i === 0 ? 'Champion' : (rnd() < 0.6 ? 'Strong' : 'Neutral')
+    else rel = i === 0 ? (rnd() < 0.5 ? 'Strong' : 'Neutral') : (rnd() < 0.5 ? 'Neutral' : 'Strong')
+    return {
+      id: `c-${a.id}-${i}`, accountId: a.id,
+      name: `${pickAt(FIRST_NAMES, seed + ri * 7 + i)} ${pickAt(LAST_NAMES, seed + ri * 13 + i * 3)}`,
+      role: CONTACT_ROLES[ri], tenureYears: 1 + Math.floor(rnd() * 9), relationship: rel,
+    }
+  })
+}
+function actOutcome(ch: Activity['channel'], a: Account, rnd: () => number): string {
+  const ws = a.whitespace[0]; const sv = a.services[0] ?? 'Home Health'
+  const visit = ['Reviewed discharge pipeline with the DON', `In-service on ${(ws ?? sv).toLowerCase()} transitions`, 'Toured the unit; discussed rising census', 'Met the discharge-planning team', 'Quarterly business review with administrator']
+  const call = ['Confirmed referral criteria and turnaround times', 'Checked in on pending discharges', ws ? `Floated ${ws} cross-sell; interest noted` : 'Reviewed active referrals', 'Coordinated a family meeting time']
+  const follow = ['Sent referral-packet templates', `Emailed ${sv} outcomes one-pager`, 'Shared preferred-provider terms', 'Recapped the in-service and next steps']
+  const note = ['Administrator flagged upcoming census growth', 'New DON starting next month — plan intro', a.referralActive ? 'Active referral progressing well' : 'Relationship steady; maintain cadence', 'Competitor outreach noted — stay close']
+  const p = ch === 'Visit' ? visit : ch === 'Call' ? call : ch === 'Follow-up' ? follow : note
+  return p[Math.floor(rnd() * p.length)]
+}
+function genActivitiesFor(a: Account): Activity[] {
+  const rnd = mulberry32(acctSeed(a.id) ^ 0x9e3779b9); const owner = repNameForAcct(a)
+  const n = 3 + Math.floor(rnd() * 4) // 3–6
+  const chans: Activity['channel'][] = ['Visit', 'Call', 'Follow-up', 'Note']
+  const out: Activity[] = []; let day = Math.max(2, Math.min(a.lastContactDays, 40))
+  for (let i = 0; i < n; i++) {
+    const ch = i === 0 ? 'Visit' : chans[Math.floor(rnd() * 4)]
+    out.push({ id: `v-${a.id}-${i}`, accountId: a.id, date: isoDaysAgo(day), channel: ch, outcome: actOutcome(ch, a, rnd), owner })
+    day += 6 + Math.floor(rnd() * 12)
+  }
+  return out
+}
+const DEAL_STAGES = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation']
+function genDealsFor(a: Account): Deal[] {
+  const rnd = mulberry32(acctSeed(a.id) ^ 0x85ebca6b)
+  const lines: string[] = [...a.whitespace]
+  if (a.referralActive && a.services[0]) lines.unshift(a.services[0])
+  if (!lines.length) { if (a.opportunityBand === 'high' && rnd() < 0.6) lines.push(a.services[0] ?? 'Home Health'); else return [] }
+  const n = Math.min(lines.length, 1 + Math.floor(rnd() * 2)) // 1–2
+  return lines.slice(0, n).map((sl, i) => {
+    const band = a.opportunityBand === 'high' ? '$$$' : a.opportunityBand === 'medium' ? '$$' : '$'
+    const stage = DEAL_STAGES[Math.floor(rnd() * DEAL_STAGES.length)]
+    return {
+      id: `d-${a.id}-${i}`, accountId: a.id,
+      name: `${sl} ${a.whitespace.includes(sl) ? 'service-line expansion' : 'preferred-provider agreement'}`,
+      stage, valueBand: band, serviceLine: sl,
+      nextStep: stage === 'Negotiation' ? 'Legal review of coverage terms' : stage === 'Proposal' ? 'Schedule stakeholder review' : stage === 'Qualification' ? 'Confirm decision-maker and budget' : 'Book discovery meeting',
+    }
+  })
+}
+
+const ELMINGTON_CONTACTS: Contact[] = [
   { id: 'c-1', accountId: ELMINGTON_ID, name: 'Patricia Hale', role: 'Administrator', tenureYears: 6, relationship: 'Champion' },
   { id: 'c-2', accountId: ELMINGTON_ID, name: 'Marcus Boyd', role: 'Director of Nursing (DON)', tenureYears: 4, relationship: 'Strong' },
   { id: 'c-3', accountId: ELMINGTON_ID, name: 'Dana Whitfield', role: 'Discharge Planner', tenureYears: 2, relationship: 'Neutral' },
   { id: 'c-4', accountId: ELMINGTON_ID, name: 'Grace Okafor', role: 'Case Manager', tenureYears: 3, relationship: 'Strong' },
 ]
-
-export const ACTIVITIES: Activity[] = [
+const ELMINGTON_ACTIVITIES: Activity[] = [
   { id: 'v-1', accountId: ELMINGTON_ID, date: '2026-07-14', channel: 'Visit', outcome: 'Reviewed discharge pipeline with DON', owner: 'Jordan Ellis' },
   { id: 'v-2', accountId: ELMINGTON_ID, date: '2026-07-07', channel: 'Call', outcome: 'Confirmed hospice eligibility criteria', owner: 'Jordan Ellis' },
   { id: 'v-3', accountId: ELMINGTON_ID, date: '2026-06-30', channel: 'Visit', outcome: 'In-service on home health transitions', owner: 'Jordan Ellis' },
   { id: 'v-4', accountId: ELMINGTON_ID, date: '2026-06-22', channel: 'Follow-up', outcome: 'Sent referral packet templates', owner: 'Jordan Ellis' },
   { id: 'v-5', accountId: ELMINGTON_ID, date: '2026-06-15', channel: 'Note', outcome: 'Administrator flagged upcoming census growth', owner: 'Jordan Ellis' },
 ]
-
-export const DEALS: Deal[] = [
+const ELMINGTON_DEALS: Deal[] = [
   { id: 'd-1', accountId: ELMINGTON_ID, name: 'Home Health preferred-provider agreement', stage: 'Negotiation', valueBand: '$$$', serviceLine: 'Home Health', nextStep: 'Legal review of coverage terms' },
   { id: 'd-2', accountId: ELMINGTON_ID, name: 'Hospice education partnership', stage: 'Proposal', valueBand: '$$', serviceLine: 'Hospice', nextStep: 'Schedule staff in-service' },
 ]
+const OTHER_ACCOUNTS = ACCOUNTS.filter(a => a.id !== ELMINGTON_ID)
+export const CONTACTS: Contact[] = [...ELMINGTON_CONTACTS, ...OTHER_ACCOUNTS.flatMap(genContactsFor)]
+export const ACTIVITIES: Activity[] = [...ELMINGTON_ACTIVITIES, ...OTHER_ACCOUNTS.flatMap(genActivitiesFor)]
+export const DEALS: Deal[] = [...ELMINGTON_DEALS, ...OTHER_ACCOUNTS.flatMap(genDealsFor)]
 
 // ---------- referrals ----------
 const REF_STAGES_POS: Referral['stage'][] = ['Received', 'Contact Attempted', 'Met Patient/Family', 'Evaluating', 'Accepted', 'Admitted']

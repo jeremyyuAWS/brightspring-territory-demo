@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore, actions } from '../store'
-import { ACCOUNTS, CONTACTS, ACTIVITIES, DEALS, TERRITORIES } from '../seed'
+import { ACCOUNTS, CONTACTS, ACTIVITIES, DEALS, TERRITORIES, ELMINGTON_ID } from '../seed'
 import { effectiveTerritoryId, effectiveRepId, accountCovered, territoryById, repById, funnel, FUNNEL_ORDER } from '../selectors'
 import type { Account, Priority, ReferralStage } from '../types'
 import { Drawer } from '../ui'
@@ -126,6 +126,19 @@ function AccountDetail({ id }: { id: string }) {
   )
 }
 
+function accountNextAction(a: Account): string {
+  if (a.id === ELMINGTON_ID) return 'Advance referral R-1042 to Evaluating and confirm home-health preferred-provider terms. Follow-up due Jul 23.'
+  if (!a.covered && a.isPriority) return `Schedule a first visit this month — ${a.priority.toLowerCase()}-priority account with no coverage. Draft an intro agenda and add it to the plan.`
+  if (a.relationshipStatus === 'at_risk') return 'Re-engage now — the relationship is cooling. Book a check-in before a competitor gains ground.'
+  if (a.referralActive) return `Advance the active referral and confirm ${(a.services[0] ?? 'home health').toLowerCase()} preferred-provider terms.`
+  if (a.whitespace.length) return `Introduce ${a.whitespace[0]} — an eligible service line not yet captured. Line up a warm intro from the current champion.`
+  return 'Maintain cadence — account is healthy and well-covered. Keep quarterly business reviews on schedule.'
+}
+function territoryContext(a: Account, tName: string): string {
+  if (a.id === ELMINGTON_ID) return `Anchor account for ${tName} coverage. Strong discharge volume; a strategic relationship retained across the recent territory rebalance.`
+  return `${a.facilityType} in ${tName}. ${a.priority} priority · opportunity score ${a.opportunityScore}. ${a.covered ? 'Currently covered' : 'Not yet covered'} — ${a.lastContactDays} days since the last meaningful touch.`
+}
+
 function Overview({ a, tName, repName }: { a: Account; tName: string; repName: string }) {
   return (
     <div className="two-col">
@@ -144,18 +157,18 @@ function Overview({ a, tName, repName }: { a: Account; tName: string; repName: s
         <div className="section-title">Next action</div>
         <div className="callout" style={{ background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' }}>
           <span className="ico">→</span>
-          <div>Advance referral <b>R-1042</b> to Evaluating and confirm home-health preferred-provider terms. Follow-up due Jul 23.</div>
+          <div>{accountNextAction(a)}</div>
         </div>
         <div className="section-title">Territory context</div>
-        <p className="muted" style={{ fontSize: 13 }}>Anchor account for {tName} coverage. Strong discharge volume; a strategic relationship retained across the recent territory rebalance.</p>
-        {a.name.includes('Elmington') && <PredictorCard />}
+        <p className="muted" style={{ fontSize: 13 }}>{territoryContext(a, tName)}</p>
+        <PredictorCard a={a} />
       </div>
     </div>
   )
 }
 
-function PredictorCard() {
-  const p = predictElmington()
+function PredictorCard({ a }: { a: Account }) {
+  const p = a.id === ELMINGTON_ID ? predictElmington() : accountForecast(a)
   return (
     <div className="predictor">
       <div className="pred-head">
@@ -173,6 +186,22 @@ function PredictorCard() {
       ))}
     </div>
   )
+}
+// generalized, deterministic per-account forecast (mirrors the facility-modal model)
+function accountForecast(a: Account) {
+  const base = a.opportunityBand === 'high' ? 4 : a.opportunityBand === 'medium' ? 3 : 2
+  let conf = 55 + (a.opportunityBand === 'high' ? 18 : a.opportunityBand === 'medium' ? 10 : 2)
+    + (a.relationshipStatus === 'current' ? 8 : a.relationshipStatus === 'at_risk' ? -12 : 0) - (a.lastContactDays > 30 ? 8 : 0)
+  conf = Math.max(40, Math.min(88, conf))
+  return {
+    low: Math.max(1, base - 1), high: base + 1, window: 'next 30 days', confidence: conf,
+    evidence: [
+      { label: 'Facility capacity', value: `${a.beds} beds · ${a.facilityType.toLowerCase()} discharge volume`, positive: true },
+      { label: 'Relationship', value: a.relationshipStatus === 'at_risk' ? 'Cooling — needs attention' : 'Engaged decision-makers', positive: a.relationshipStatus !== 'at_risk' },
+      { label: 'Recent activity', value: a.lastContactDays <= 21 ? `Visited ${a.lastContactDays}d ago` : `No visit in ${a.lastContactDays}d`, positive: a.lastContactDays <= 21 },
+      { label: 'Service-line fit', value: a.whitespace.length ? `${a.whitespace[0]} whitespace open` : 'Core services penetrated', positive: a.whitespace.length > 0 },
+    ],
+  }
 }
 
 function Contacts({ id }: { id: string }) {
@@ -219,47 +248,65 @@ function Activities({ id }: { id: string }) {
   )
 }
 
-const RELATIONSHIP_LINES: { line: string; status: 'current' | 'progress' | 'whitespace' | 'competitor'; owner: string; note: string }[] = [
-  { line: 'Pharmacy', status: 'current', owner: 'M. Torres', note: 'Active — primary pharmacy provider' },
-  { line: 'Home Health', status: 'whitespace', owner: 'Jordan Ellis', note: 'Whitespace — R-1042 is the wedge' },
-  { line: 'Hospice', status: 'progress', owner: 'Jordan Ellis', note: 'Education partnership in progress' },
-  { line: 'Rehabilitation', status: 'current', owner: 'D. Cole', note: 'Active — in-house therapy referrals' },
-  { line: 'Behavioral Health', status: 'whitespace', owner: '—', note: 'Whitespace — not yet engaged' },
-  { line: 'Personal Care', status: 'competitor', owner: '—', note: 'Competitor-held (regional provider)' },
-]
+// canonical BrightSpring lines — must match the SERVICES pool in seed.ts so current/whitespace classify correctly
+const ALL_LINES = ['Home Health', 'Hospice', 'Personal Care', 'Rehab Therapy', 'Palliative']
 const REL_STATUS: Record<string, { label: string; cls: string }> = {
   current: { label: 'Current', cls: 'healthy' }, progress: { label: 'In progress', cls: 'blue' },
   whitespace: { label: 'Whitespace', cls: 'neutral' }, competitor: { label: 'Competitor', cls: 'risk' },
 }
 
 function Relationship({ a }: { a: Account }) {
+  const first = a.name.split(' ')[0]
+  const contacts = CONTACTS.filter(c => c.accountId === a.id)
+  const champion = contacts.find(c => c.relationship === 'Champion') ?? contacts.find(c => c.relationship === 'Strong') ?? contacts[0]
+  const risk = contacts.find(c => c.relationship === 'At Risk')
+  const lines = ALL_LINES.map((l, i) => {
+    const status: 'current' | 'whitespace' | 'competitor' =
+      a.services.includes(l) ? 'current' : a.whitespace.includes(l) ? 'whitespace' : 'competitor'
+    const note = status === 'current' ? 'Active — established referral flow'
+      : status === 'whitespace' ? 'Whitespace — eligible, not yet captured'
+      : (i % 2 === 0 ? 'Competitor-held (regional provider)' : 'Not yet engaged')
+    return { line: l, status, note }
+  })
+  const usesText = a.services.length ? `BrightSpring ${a.services.join(' and ')}` : 'no BrightSpring service lines yet'
+  const ws = a.whitespace
   return (
     <div>
       <div className="callout" style={{ background: '#f2f7fd', borderColor: '#bcd4ee', color: '#12385f' }}>
         <span className="ico">◈</span>
-        <div><b>{a.name.split(' ')[0]} uses BrightSpring Pharmacy and Rehabilitation, but not Home Health or Hospice.</b> The administrator relationship is strong, and a new DON started 43 days ago — recommend a <b>coordinated cross-line introduction</b> led by the Pharmacy owner.</div>
+        <div>
+          <b>{first} uses {usesText}{ws.length ? `, but not ${ws.join(' or ')}` : ''}.</b>{' '}
+          {champion ? `The ${champion.role} relationship is ${champion.relationship.toLowerCase()}${champion.relationship === 'Champion' || champion.relationship === 'Strong' ? '' : ' — needs strengthening'}.` : 'Relationships are still forming.'}
+          {ws.length ? ` Recommend a coordinated cross-line introduction into ${ws[0]}.` : ' Focus on protecting the existing lines.'}
+        </div>
       </div>
       <div className="two-col">
         <div>
           <div className="section-title">BrightSpring service lines</div>
           <div className="rel-graph">
-            <div className="rel-hub">{a.name.split(' ')[0]}</div>
-            {RELATIONSHIP_LINES.map(r => (
+            <div className="rel-hub">{first}</div>
+            {lines.map(r => (
               <div key={r.line} className={`rel-line ${r.status}`}>
                 <span className="rel-line-name">{r.line}</span>
                 <span className={`badge ${REL_STATUS[r.status].cls}`} style={{ fontSize: 10 }}>{REL_STATUS[r.status].label}</span>
                 <span className="rel-line-note">{r.note}</span>
-                <span className="rel-line-owner muted">{r.owner !== '—' ? `owner: ${r.owner}` : ''}</span>
+                <span className="rel-line-owner muted" />
               </div>
             ))}
           </div>
         </div>
         <div>
           <div className="section-title">Champions &amp; risks</div>
-          <div className="callout" style={{ background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}><span className="ico">★</span><div><b>Champion:</b> Patricia Hale (Administrator) — 6-yr tenure, drives referral volume across lines.</div></div>
-          <div className="callout" style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}><span className="ico">⚠</span><div><b>Watch:</b> New DON started 43 days ago — relationship not yet established; fields competing home-health outreach.</div></div>
-          <div className="section-title" style={{ marginTop: 14 }}>Cross-sell opportunity</div>
-          <div className="callout" style={{ background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' }}><span className="ico">↗</span><div>Pharmacy champion can warm-intro <b>Home Health + Hospice</b>. Est. <b>+3–5 referrals/mo</b> if converted. <span className="badge sim" style={{ fontSize: 10 }}>◆ simulated</span></div></div>
+          {champion && <div className="callout" style={{ background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}><span className="ico">★</span><div><b>Champion:</b> {champion.name} ({champion.role}) — {champion.tenureYears}-yr tenure, drives referral volume across lines.</div></div>}
+          {risk
+            ? <div className="callout" style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}><span className="ico">⚠</span><div><b>Watch:</b> {risk.name} ({risk.role}) — relationship at risk; fields competing outreach.</div></div>
+            : a.relationshipStatus === 'at_risk'
+              ? <div className="callout" style={{ background: '#fee2e2', borderColor: '#fecaca', color: '#b91c1c' }}><span className="ico">⚠</span><div><b>Watch:</b> Overall relationship is cooling — a competitor may be gaining ground.</div></div>
+              : <div className="callout" style={{ background: '#f8fafc', borderColor: '#e2e8f0', color: 'var(--text-2)' }}><span className="ico">◔</span><div>No active relationship risks flagged.</div></div>}
+          {ws.length > 0 && <>
+            <div className="section-title" style={{ marginTop: 14 }}>Cross-sell opportunity</div>
+            <div className="callout" style={{ background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' }}><span className="ico">↗</span><div>{champion ? `${champion.name.split(' ')[0]}` : 'The current champion'} can warm-intro <b>{ws.slice(0, 2).join(' + ')}</b>. Est. <b>+{a.opportunityBand === 'high' ? '3–5' : '2–3'} referrals/mo</b> if converted. <span className="badge sim" style={{ fontSize: 10 }}>◆ simulated</span></div></div>
+          </>}
         </div>
       </div>
     </div>
