@@ -1,6 +1,7 @@
 import { actions, useStore } from '../store'
 import { ACCOUNTS, OPTIMIZED_CAPACITY } from '../seed'
 import { repById, territoryById, accountCovered, facilitySize, dischargeNoun } from '../selectors'
+import { useEscClose } from '../ui'
 import type { Account } from '../types'
 
 const REL_LABEL: Record<string, string> = { current: 'Current customer', growth: 'Growth opportunity', prospect: 'Prospect', at_risk: 'At-risk relationship' }
@@ -42,6 +43,7 @@ function nextAction(a: Account, covered: boolean) {
 
 export function FacilityModal() {
   const s = useStore()
+  useEscClose(actions.closeFacility)
   if (!s.facilityId) return null
   const a = ACCOUNTS.find(x => x.id === s.facilityId)
   if (!a) return null

@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Status } from './types'
 
+// close-on-Escape for any modal/drawer that doesn't use <Drawer/>
+export function useEscClose(onClose: () => void) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+}
+
 export function StatusBadge({ status }: { status: Status }) {
   const cls = status === 'Healthy' ? 'healthy' : status === 'Watch' ? 'watch' : 'risk'
   return <span className={`badge ${cls}`}>{status}</span>
@@ -51,9 +60,9 @@ export function LoadingSteps({ steps, done }: { steps: string[]; done: number })
 }
 
 // animate a number toward its target when it changes (KPI count-up)
-export function useCountUp(target: number, ms = 650) {
-  const [val, setVal] = useState(target)
-  const fromRef = useRef(target)
+export function useCountUp(target: number, ms = 650, startFrom?: number) {
+  const [val, setVal] = useState(startFrom ?? target)
+  const fromRef = useRef(startFrom ?? target)
   useEffect(() => {
     const from = fromRef.current
     if (from === target) return
@@ -67,13 +76,15 @@ export function useCountUp(target: number, ms = 650) {
       else { fromRef.current = target; setVal(target) }
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    // safety net: if rAF is throttled (e.g. tab loads in background) still settle to target
+    const safety = setTimeout(() => { fromRef.current = target; setVal(target) }, ms + 250)
+    return () => { cancelAnimationFrame(raf); clearTimeout(safety) }
   }, [target, ms])
   return val
 }
 
-export function AnimatedNumber({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
-  const v = useCountUp(value)
+export function AnimatedNumber({ value, suffix = '', decimals = 0, startFrom, ms = 650 }: { value: number; suffix?: string; decimals?: number; startFrom?: number; ms?: number }) {
+  const v = useCountUp(value, ms, startFrom)
   return <>{v.toFixed(decimals)}{suffix}</>
 }
 

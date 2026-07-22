@@ -6,6 +6,7 @@ import { Today } from './views/Today'
 import { Accounts } from './views/Accounts'
 import { DataSimPanel } from './components/DataSimPanel'
 import { Assistant } from './assistant/Assistant'
+import { useEscClose } from './ui'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'home', label: 'Home' },
@@ -33,6 +34,7 @@ export default function App() {
   const s = useStore()
   const [showReset, setShowReset] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  useEscClose(() => setShowReset(false))
 
   return (
     <div className="app">

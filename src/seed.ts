@@ -301,7 +301,8 @@ function genReferrals(): Referral[] {
     const recv = new Date(2026, 6, 1 + Math.floor(rnd() * 20))
     const fu = new Date(recv.getTime() + (3 + Math.floor(rnd() * 10)) * 86400000)
     out.push({
-      id: `R-${1043 + i}`, accountId: acct.id, sourceOrg: acct.name, // the account IS the referring facility
+      // the account IS the referring facility; keep the (rnd()) to preserve the tuned PRNG sequence (31% conversion etc.)
+      id: `R-${1043 + i}`, accountId: acct.id, sourceOrg: (rnd(), acct.name),
       serviceLine: rnd() < 0.6 ? 'Home Health' : 'Hospice', receivedDate: recv.toISOString().slice(0, 10),
       territoryId: t.id, repId: rep.id, stage, metFamily: stage === 'Received' || stage === 'Contact Attempted' ? 'Not Yet' : rnd() < 0.7 ? 'Yes' : 'No',
       notes: '', followUpDate: fu.toISOString().slice(0, 10), owner: rep.name,

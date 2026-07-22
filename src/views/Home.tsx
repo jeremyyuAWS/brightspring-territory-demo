@@ -266,17 +266,17 @@ function KpiCards({ k, applied }: { k: MarketKpis; applied: boolean }) {
       <div className={card('coverage')} onClick={() => actions.selectKpi('coverage')} title="Click to highlight covered vs uncovered priority accounts">
         {applied ? <span className="delta up">+14 pts</span> : <span className="delta up" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>vs 71% last mo</span>}
         <div className="label">Priority Coverage</div>
-        <div className="value"><AnimatedNumber value={k.coveragePct} suffix="%" /></div>
+        <div className="value"><AnimatedNumber value={k.coveragePct} suffix="%" startFrom={0} ms={900} /></div>
         <div className="sub">Priority-account coverage, market-wide</div>
       </div>
       <div className={card('priorityCovered')} onClick={() => actions.selectKpi('priorityCovered')} title="Click to highlight covered vs uncovered priority accounts">
         <div className="label">Priority accounts covered</div>
-        <div className="value"><AnimatedNumber value={k.priorityCovered} /><span style={{ fontSize: 18, color: 'var(--text-3)' }}> / {k.priorityTotal}</span></div>
+        <div className="value"><AnimatedNumber value={k.priorityCovered} startFrom={0} ms={1000} /><span style={{ fontSize: 18, color: 'var(--text-3)' }}> / {k.priorityTotal}</span></div>
         <div className="sub">{k.priorityTotal - k.priorityCovered} uncovered high-priority accounts</div>
       </div>
       <div className={card('conversion')} onClick={() => actions.selectKpi('conversion')} title="Click to color territories by referral conversion">
         <div className="label">Referral conversion</div>
-        <div className="value"><AnimatedNumber value={k.referralConversion} suffix="%" /></div>
+        <div className="value"><AnimatedNumber value={k.referralConversion} suffix="%" startFrom={0} ms={1100} /></div>
         <div className="sub">Accepted + admitted ÷ all referrals</div>
       </div>
       <div className={card('atRisk')} onClick={() => actions.selectKpi('atRisk')} title="Click to highlight at-risk & watch territories">

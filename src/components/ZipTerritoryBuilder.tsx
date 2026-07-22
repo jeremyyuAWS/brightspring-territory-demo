@@ -5,6 +5,7 @@ import { actions } from '../store'
 import { ACCOUNTS, TERRITORIES, REPS } from '../seed'
 import { repById, territoryById } from '../selectors'
 import { zipCells, type ZipCell } from '../geo'
+import { useEscClose } from '../ui'
 
 const BASE_CELLS = zipCells()
 // nearest ZIP for each account (deterministic)
@@ -17,6 +18,7 @@ const ACCT_ZIP: Record<string, string> = {}
 for (const a of ACCOUNTS) ACCT_ZIP[a.id] = nearestZip(a.lng, a.lat)
 
 export function ZipTerritoryBuilder({ onClose }: { onClose: () => void }) {
+  useEscClose(onClose)
   const [assign, setAssign] = useState<Record<string, string>>(() => Object.fromEntries(BASE_CELLS.map(c => [c.zip, c.territoryId])))
   const [selTerr, setSelTerr] = useState('t-south')
   const [saved, setSaved] = useState(false)
