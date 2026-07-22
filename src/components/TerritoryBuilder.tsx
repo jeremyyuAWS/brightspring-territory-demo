@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { actions } from '../store'
 import { BEFORE_AFTER, PROPOSED_CHANGES } from '../seed'
-import { Drawer, LoadingSteps, useChoreography } from '../ui'
+import { Drawer, LoadingSteps, useChoreography, AnimatedNumber } from '../ui'
 
-const STRATEGIES = [
-  { id: 'balanced', name: 'Balanced Coverage', desc: 'Even coverage and capacity across territories', enabled: true },
-  { id: 'more', name: 'More Priority Coverage', desc: 'Maximize priority-account coverage', enabled: false },
-  { id: 'drive', name: 'Reduce Drive Time', desc: 'Minimize weekly travel burden', enabled: false },
-  { id: 'protect', name: 'Protect Strategic Relationships', desc: 'Preserve named strategic accounts and champions', enabled: false },
-]
+// The proposal is optimized for Balanced Coverage. Secondary goals are honored as constraints
+// by the optimizer, rather than shown as separate (and disabled) strategy toggles.
+const OBJECTIVE = {
+  name: 'Balanced Coverage',
+  desc: 'Even priority coverage and rep capacity across territories, within the locked constraints below.',
+  honors: ['Maximizes priority-account coverage', 'Contains weekly drive time', 'Preserves strategic relationships'],
+}
 
 const STEPS = ['Analyzing representative capacity', 'Checking priority coverage gaps', 'Building territory proposal']
 
@@ -16,9 +17,10 @@ type Phase = 'configure' | 'generating' | 'proposal'
 
 export function TerritoryBuilder() {
   const [phase, setPhase] = useState<Phase>('configure')
-  const [strategy, setStrategy] = useState('balanced')
   const [selChange, setSelChange] = useState<string | null>(null)
   const done = useChoreography(STEPS, phase === 'generating', () => setPhase('proposal'))
+  // drive the map choreography: diagnose (pulse the problem) → proposal (show the move)
+  useEffect(() => { actions.setOptimizePhase(phase === 'proposal' ? 'proposal' : 'diagnose') }, [phase])
 
   return (
     <Drawer wide title="Territory Builder" onClose={() => actions.closeBuilder()}
@@ -39,23 +41,18 @@ export function TerritoryBuilder() {
 
       {phase === 'configure' && (
         <>
-          <div className="callout">
-            <span className="ico">◆</span>
+          <div className="callout risk">
+            <span className="ico">▲</span>
             <div><b>Diagnosis:</b> South Richmond is At Risk — 6 priority accounts uncovered, rep at 112% capacity, 9.7 drive hrs/wk.</div>
           </div>
-          <div className="section-title">Optimization strategy</div>
-          {STRATEGIES.map(st => (
-            <label key={st.id} className={`change-card ${strategy === st.id ? 'sel' : ''}`} style={{ display: 'block', opacity: st.enabled ? 1 : 0.5 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="radio" name="strat" checked={strategy === st.id} disabled={!st.enabled}
-                  onChange={() => st.enabled && setStrategy(st.id)} />
-                <div>
-                  <h4 style={{ display: 'inline' }}>{st.name}</h4>{!st.enabled && <span className="badge neutral" style={{ marginLeft: 8 }}>Demo: Balanced only</span>}
-                  <div className="meta">{st.desc}</div>
-                </div>
-              </div>
-            </label>
-          ))}
+          <div className="section-title">Optimization objective</div>
+          <div className="change-card sel" style={{ cursor: 'default' }}>
+            <h4>◎ {OBJECTIVE.name}</h4>
+            <div className="meta">{OBJECTIVE.desc}</div>
+            <div className="obj-honors">
+              {OBJECTIVE.honors.map(h => <span key={h} className="obj-chip">✓ {h}</span>)}
+            </div>
+          </div>
           <div className="section-title">Locked constraints</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text-2)' }}>
             <li>Retain named strategic accounts</li>
@@ -80,12 +77,14 @@ export function TerritoryBuilder() {
           <table className="ba-table">
             <thead><tr><th>Metric</th><th>Before</th><th></th><th>After</th><th>Change</th></tr></thead>
             <tbody>
-              {BEFORE_AFTER.map(r => (
+              {BEFORE_AFTER.map((r, i) => (
                 <tr key={r.metric}>
                   <td>{r.metric}</td>
                   <td className="before">{r.before}</td>
                   <td><span className="arrow">→</span></td>
-                  <td className="after">{r.after}</td>
+                  <td className="after">
+                    <AnimatedNumber value={r.aNum} startFrom={r.bNum} decimals={r.dec} suffix={r.sfx} ms={900 + i * 120} />
+                  </td>
                   <td className="chg">{r.change}</td>
                 </tr>
               ))}

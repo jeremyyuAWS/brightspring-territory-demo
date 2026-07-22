@@ -258,6 +258,8 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 .change-card .meta { font-size: 12.5px; color: var(--text-2); margin-top: 5px; }
 .change-card .why { font-size: 12.5px; margin-top: 6px; }
 .change-card .why b { color: var(--text); }
+.obj-honors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.obj-chip { font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--panel-2, #f6f7f9); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; }
 
 /* ---------- steps / progress ---------- */
 .loading-steps { display: flex; flex-direction: column; gap: 10px; padding: 12px 4px; }
@@ -529,6 +531,11 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 /* ---------- info / callouts ---------- */
 .callout { display: flex; gap: 10px; background: var(--sim-bg); border: 1px solid #e9d5ff; color: #6b21a8; border-radius: 10px; padding: 11px 13px; font-size: 12.5px; margin-bottom: 14px; }
 .callout .ico { font-size: 16px; }
+/* semantic risk callout — for diagnosis / at-risk framing (purple is reserved for simulation labels) */
+.callout.risk { background: var(--risk-bg); border-color: #fecaca; color: #991b1b; }
+.callout.risk .ico { color: var(--risk); }
+.callout.warn { background: var(--watch-bg); border-color: #fde68a; color: #92400e; }
+.callout.warn .ico { color: var(--watch); }
 .muted { color: var(--text-3); }
 .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 700; margin: 18px 0 8px; }
 .list-reset { list-style: none; padding: 0; margin: 0; }

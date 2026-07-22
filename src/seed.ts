@@ -362,11 +362,11 @@ export const MARKET_OPTIMIZED = { coveragePct: 90, priorityCovered: 38, priority
 
 // ---------- Before/After panel (deterministic per PRD) ----------
 export const BEFORE_AFTER = [
-  { metric: 'Priority coverage', before: '76%', after: '90%', change: '+14 pts', good: true },
-  { metric: 'At-risk territories', before: '1', after: '0', change: '−1', good: true },
-  { metric: 'Uncovered priority accounts', before: '10', after: '4', change: '−6', good: true },
-  { metric: 'Avg. weekly drive time', before: '7.3 hrs', after: '6.6 hrs', change: '−0.7 hrs', good: true },
-  { metric: 'Rep capacity spread', before: '36 pts', after: '14 pts', change: 'More balanced', good: true },
+  { metric: 'Priority coverage', before: '76%', after: '90%', change: '+14 pts', good: true, bNum: 76, aNum: 90, dec: 0, sfx: '%' },
+  { metric: 'At-risk territories', before: '1', after: '0', change: '−1', good: true, bNum: 1, aNum: 0, dec: 0, sfx: '' },
+  { metric: 'Uncovered priority accounts', before: '10', after: '4', change: '−6', good: true, bNum: 10, aNum: 4, dec: 0, sfx: '' },
+  { metric: 'Avg. weekly drive time', before: '7.3 hrs', after: '6.6 hrs', change: '−0.7 hrs', good: true, bNum: 7.3, aNum: 6.6, dec: 1, sfx: ' hrs' },
+  { metric: 'Rep capacity spread', before: '36 pts', after: '14 pts', change: 'More balanced', good: true, bNum: 36, aNum: 14, dec: 0, sfx: ' pts' },
 ]
 
 // ---------- proposed changes (Balanced strategy, deterministic) ----------

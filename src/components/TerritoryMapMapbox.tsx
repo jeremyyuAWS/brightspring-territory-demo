@@ -12,6 +12,22 @@ import type { Account, Referral } from '../types'
 
 const STATUS_HEX: Record<string, string> = { Healthy: '#2E7D5B', Watch: '#D99A22', 'At Risk': '#C74634' }
 
+// the 6 South Richmond priority accounts with no visit this month — the diagnosed problem
+const SOUTH_UNCOVERED = ACCOUNTS.filter(a => a.territoryId === 't-south' && a.isPriority && !a.covered)
+
+// quadratic bezier from a→b, bowed perpendicular, sampled as a LineString (for the reassignment curve)
+function bezierCurve(a: [number, number], b: [number, number], bow = 0.22, n = 48): [number, number][] {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2
+  const dx = b[0] - a[0], dy = b[1] - a[1]
+  const cx = mx - dy * bow, cy = my + dx * bow // control point offset perpendicular to a→b
+  const pts: [number, number][] = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t
+    pts.push([u * u * a[0] + 2 * u * t * cx + t * t * b[0], u * u * a[1] + 2 * u * t * cy + t * t * b[1]])
+  }
+  return pts
+}
+
 // per-territory referral-conversion choropleth color (live from current referrals)
 function conversionColorExpr(referrals: Referral[]): any {
   const ramp = (pct: number) => pct >= 55 ? '#16a34a' : pct >= 40 ? '#65a30d' : pct >= 25 ? '#d99a22' : '#c74634'
@@ -196,6 +212,9 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addSource('pulse', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('flow', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
       map.addSource('flow-src', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
+      map.addSource('diag-pulse', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any }) // optimize: pulse the problem
+      map.addSource('moves', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })     // optimize: reassignment curve
+      map.addSource('moves-pt', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } as any })
 
       // isochrone (drawn under everything)
       map.addLayer({ id: 'iso-fill', type: 'fill', source: 'iso', paint: { 'fill-color': '#0d5c63', 'fill-opacity': ['interpolate', ['linear'], ['get', 'minutes'], 30, 0.22, 60, 0.08] } })
@@ -299,6 +318,30 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       map.addLayer({
         id: 'pulse-ring', type: 'circle', source: 'pulse',
         paint: { 'circle-radius': 6, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#1b5aa8', 'circle-stroke-width': 3, 'circle-stroke-opacity': 0.9 },
+      }, 'account-points')
+      // ---- optimize choreography: diagnosis pulse (the problem) + reassignment curve (the move) ----
+      // reassignment curve (drawn under the account markers so the dots stay on top)
+      map.addLayer({
+        id: 'moves-line', type: 'line', source: 'moves', layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#1b5aa8', 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [1.6, 1.4] },
+      }, 'account-points')
+      map.addLayer({
+        id: 'moves-arrow', type: 'symbol', source: 'moves',
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 60, 'text-field': '▶', 'text-size': 13,
+          'text-keep-upright': false, 'text-rotation-alignment': 'map', 'text-allow-overlap': true, 'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#1b5aa8', 'text-halo-color': '#ffffff', 'text-halo-width': 1.4 },
+      })
+      // destination marker (where the reassigned account lands)
+      map.addLayer({
+        id: 'moves-dest', type: 'circle', source: 'moves-pt',
+        paint: { 'circle-radius': 7, 'circle-color': 'rgba(27,90,168,.15)', 'circle-stroke-color': '#1b5aa8', 'circle-stroke-width': 2.5 },
+      })
+      // diagnosis pulse — red rings on the uncovered priority accounts, animated while diagnosing
+      map.addLayer({
+        id: 'diag-pulse-ring', type: 'circle', source: 'diag-pulse',
+        paint: { 'circle-radius': 8, 'circle-color': 'rgba(220,38,38,0.06)', 'circle-stroke-color': '#dc2626', 'circle-stroke-width': 3, 'circle-stroke-opacity': 0.9 },
       }, 'account-points')
       // uncovered-priority emphasis (hidden by default)
       map.addLayer({
@@ -555,6 +598,68 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [applied, ready])
+
+  // optimize choreography — diagnose: pulse the 6 uncovered priority accounts;
+  // proposal: draw the Elmington reassignment curve (South → Central) and frame the move.
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !ready) return
+    const phase = s.optimizePhase
+    const diag = map.getSource('diag-pulse') as mapboxgl.GeoJSONSource | undefined
+    const moves = map.getSource('moves') as mapboxgl.GeoJSONSource | undefined
+    const movesPt = map.getSource('moves-pt') as mapboxgl.GeoJSONSource | undefined
+    if (!diag || !moves || !movesPt) return
+    const clearMoves = () => { moves.setData({ type: 'FeatureCollection', features: [] } as any); movesPt.setData({ type: 'FeatureCollection', features: [] } as any) }
+    const clearDiag = () => diag.setData({ type: 'FeatureCollection', features: [] } as any)
+
+    if (phase === 'diagnose') {
+      clearMoves()
+      diag.setData({
+        type: 'FeatureCollection',
+        features: SOUTH_UNCOVERED.map(a => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [a.lng, a.lat] }, properties: {} })),
+      } as any)
+      let raf = 0
+      const start = performance.now()
+      const tick = (now: number) => {
+        const cyc = ((now - start) % 1400) / 1400
+        map.setPaintProperty('diag-pulse-ring', 'circle-radius', 8 + cyc * 22)
+        map.setPaintProperty('diag-pulse-ring', 'circle-stroke-opacity', 0.9 * (1 - cyc))
+        raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+      return () => { cancelAnimationFrame(raf); clearDiag() }
+    }
+
+    if (phase === 'proposal') {
+      clearDiag()
+      const elm = ACCOUNTS.find(a => a.id === ELMINGTON_ID)
+      const dest = labelPoints()['t-central']
+      if (!elm || !dest) return
+      const curve = bezierCurve([elm.lng, elm.lat], dest as [number, number])
+      moves.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: curve }, properties: {} }] } as any)
+      movesPt.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: dest }, properties: {} }] } as any)
+      // frame both endpoints (leave room on the right for the open drawer)
+      const lngs = [elm.lng, dest[0]], lats = [elm.lat, dest[1]]
+      map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: { top: 70, bottom: 70, left: 60, right: 440 }, duration: 800, maxZoom: 12 })
+      // ants-marching dash so the reassignment reads as motion toward Central
+      const DASH_SEQ: number[][] = [
+        [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5],
+        [3, 4, 0], [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+      ]
+      let raf = 0, step = -1
+      const start = performance.now()
+      const tick = (now: number) => {
+        const i = Math.floor((now - start) / 60) % DASH_SEQ.length
+        if (i !== step) { step = i; map.setPaintProperty('moves-line', 'line-dasharray', DASH_SEQ[i] as any) }
+        raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+      return () => { cancelAnimationFrame(raf); clearMoves() }
+    }
+
+    // idle
+    clearDiag(); clearMoves()
+  }, [s.optimizePhase, ready])
 
   // smooth fly-to a selected territory; fit the whole market when cleared
   useEffect(() => {

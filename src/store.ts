@@ -24,6 +24,8 @@ export interface DemoState {
   audit: AuditEntry[]
   snapshotReady: boolean
   builderOpen: boolean
+  // optimize storytelling phase — drives map choreography (pulse the problem, then show the move)
+  optimizePhase: 'idle' | 'diagnose' | 'proposal'
   zipBuilderOpen: boolean
   facilityId: string | null
   repDrillId: string | null // rep whose Intelligence drawer is open (map-level rep drill)
@@ -71,6 +73,7 @@ function freshState(): DemoState {
     audit: [],
     snapshotReady: false,
     builderOpen: false,
+    optimizePhase: 'idle',
     zipBuilderOpen: false,
     facilityId: null,
     repDrillId: null,
@@ -163,8 +166,9 @@ export const actions = {
   selectInsight(id: string | null, territoryId?: string | null) {
     set({ selectedInsightId: state.selectedInsightId === id ? null : id, selectedTerritoryId: territoryId ?? state.selectedTerritoryId, selectedKpi: null })
   },
-  openBuilder() { set({ builderOpen: true, selectedTerritoryId: 't-south' }) },
-  closeBuilder() { set({ builderOpen: false }) },
+  openBuilder() { set({ builderOpen: true, selectedTerritoryId: 't-south', optimizePhase: 'diagnose' }) },
+  closeBuilder() { set({ builderOpen: false, optimizePhase: 'idle' }) },
+  setOptimizePhase(p: DemoState['optimizePhase']) { set({ optimizePhase: p }) },
   openZipBuilder() { set({ zipBuilderOpen: true, tab: 'home' }) },
   closeZipBuilder() { set({ zipBuilderOpen: false }) },
   openFacility(id: string) { set({ facilityId: id }) },
@@ -187,7 +191,7 @@ export const actions = {
       after: 'Priority coverage 90% · 0 at-risk · 4 uncovered priority',
       reason: 'Rebalance South Richmond load and close priority coverage gaps',
     })
-    set({ optimizationApplied: true, builderOpen: false, undoLabel: 'Undo optimization' })
+    set({ optimizationApplied: true, builderOpen: false, optimizePhase: 'idle', undoLabel: 'Undo optimization' })
   },
   undo() {
     if (undoSnapshot) {
