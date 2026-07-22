@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore, actions } from '../store'
 import { ACCOUNTS, CONTACTS, ACTIVITIES, DEALS, TERRITORIES, ELMINGTON_ID } from '../seed'
-import { effectiveTerritoryId, effectiveRepId, accountCovered, territoryById, repById, funnel, FUNNEL_ORDER } from '../selectors'
+import { effectiveTerritoryId, effectiveRepId, accountCovered, territoryById, repById, cohortFunnel, FUNNEL_ORDER } from '../selectors'
 import type { Account, Priority, ReferralStage } from '../types'
 import { Drawer } from '../ui'
 import { ReferralForm } from '../components/ReferralForm'
@@ -357,7 +357,7 @@ function Referrals({ id }: { id: string }) {
   const [dispId, setDispId] = useState<string | null>(null)
   const acct = ACCOUNTS.find(a => a.id === id)!
   const refs = s.referrals.filter(r => r.accountId === id)
-  const fun = funnel(s.referrals) // market funnel to feel connected
+  const fun = cohortFunnel(s.referrals) // cohort funnel — monotonically decreasing (matches Home)
 
   const stageClass = (st: ReferralStage) =>
     st === 'Admitted' || st === 'Accepted' ? 'healthy'
@@ -388,16 +388,16 @@ function Referrals({ id }: { id: string }) {
           ))}
         </div>
         <div>
-          <div className="section-title">Conversion funnel (market)</div>
+          <div className="section-title">Referral cohort (market · Jul)</div>
           <div className="funnel">
             {fun.map(f => (
               <div className="fb" key={f.stage}>
-                <span className="lab">{f.stage}</span>
+                <span className="lab">{f.label}</span>
                 <span className="track"><span className="fill" style={{ width: `${Math.max(8, (f.count / maxF) * 100)}%` }}>{f.count}</span></span>
               </div>
             ))}
           </div>
-          <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Logging or advancing a referral updates this funnel, the account activity, and territory KPIs so the app feels connected.</p>
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Cohort of referrals received this period, tracked to their furthest stage. Logging or advancing a referral updates this funnel, the account activity, and territory KPIs so the app feels connected.</p>
         </div>
       </div>
 

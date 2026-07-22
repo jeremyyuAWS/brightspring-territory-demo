@@ -100,9 +100,25 @@ function ToastHost() {
       </div>,
     )
   }
+  if (s.flash) toasts.push(<FlashToast key="flash" message={s.flash} />)
   if (s.undoLabel) toasts.push(<UndoToast key="undo" label={s.undoLabel} />)
   if (!toasts.length) return null
   return <div className="toast-wrap">{toasts}</div>
+}
+
+// transient confirmation toast — auto-dismisses after ~4s
+function FlashToast({ message }: { message: string }) {
+  useEffect(() => {
+    const t = setTimeout(() => actions.clearFlash(), 4000)
+    return () => clearTimeout(t)
+  }, [message])
+  return (
+    <div className="toast">
+      <span>◆</span>
+      <span className="grow">{message}</span>
+      <button className="tbtn" onClick={() => actions.clearFlash()}>Dismiss</button>
+    </div>
+  )
 }
 
 // Big toast for ~5s, then collapse to a compact applied-state pill so it stops covering

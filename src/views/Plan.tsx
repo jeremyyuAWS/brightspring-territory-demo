@@ -81,8 +81,8 @@ export function Plan() {
         <div className="ph-headline"><b>{HORIZON_RANGE[horizon].split(' · ')[0]} · Richmond · 5 reps</b></div>
         <div className="ph-stats">
           <span><b>{covered} of 42</b> priority accounts covered</span>
-          <span><b>82</b> visits planned</span>
-          <span><b>6</b> open slots</span>
+          <span><b>{horizon === 'Week' ? 21 : horizon === 'Period' ? 62 : 82}</b> visits planned</span>
+          <span><b>{horizon === 'Week' ? 2 : horizon === 'Period' ? 5 : 6}</b> open slots</span>
           <span className={risks ? 'ph-risk' : ''}><b>{risks}</b> unresolved risk{risks === 1 ? '' : 's'}</span>
         </div>
       </div>

@@ -29,6 +29,7 @@ export interface DemoState {
   repDrillId: string | null // rep whose Intelligence drawer is open (map-level rep drill)
   fromAccountId: string | null // account we cross-drilled from (kept highlighted in the rep drawer)
   compareOpen: boolean
+  flash: string | null // transient confirmation toast (e.g. Salesforce sync)
   // undo: snapshot of the reversible slice captured before the last op
   undoLabel: string | null
   // ---- AI copilot ----
@@ -75,6 +76,7 @@ function freshState(): DemoState {
     repDrillId: null,
     fromAccountId: null,
     compareOpen: false,
+    flash: null,
     undoLabel: null,
     assistantOpen: false,
     memory: [],
@@ -239,7 +241,9 @@ export const actions = {
 
   simulateSync() {
     addAudit({ actor: 'Demo Manager', action: 'Salesforce sync (queued)', detail: 'Demo simulation · no live write' })
+    set({ flash: 'Salesforce sync queued — 5 territories & 52 accounts pushed to the demo mock. No live write.' })
   },
+  clearFlash() { set({ flash: null }) },
 
   // ---------- AI copilot ----------
   toggleAssistant(open?: boolean) { set({ assistantOpen: open ?? !state.assistantOpen }) },

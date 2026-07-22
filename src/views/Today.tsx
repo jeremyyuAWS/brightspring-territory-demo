@@ -260,7 +260,8 @@ function Rebalance({ repId, onClose }: { repId: string; onClose: () => void }) {
   const day = DAYS[repId]
   const from = REPS.find(r => r.id === repId)!
   const moveable = day.timeline.find((t): t is Extract<TimelineItem, { kind: 'meeting' }> => t.kind === 'meeting' && t.status === 'Unconfirmed')
-  const to = REPS.find(r => r.territoryId && r.id !== repId && r.capacityPct < 90) ?? REPS.find(r => r.id === 'r-maya')!
+  // move to the territory rep with the most open capacity (lowest utilization), not just the first under 90%
+  const to = REPS.filter(r => r.territoryId && r.id !== repId).sort((a, b) => a.capacityPct - b.capacityPct)[0] ?? REPS.find(r => r.id === 'r-maya')!
   const [applied, setApplied] = useState(false)
   if (!moveable) return (
     <Drawer title="Rebalance today" onClose={onClose} footer={<button className="btn primary" onClick={onClose}>Close</button>}>
