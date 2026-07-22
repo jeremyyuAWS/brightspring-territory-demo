@@ -24,8 +24,13 @@ export interface DemoState {
   audit: AuditEntry[]
   snapshotReady: boolean
   builderOpen: boolean
+  // Territory Builder phase, lifted to the store so the presenter walkthrough can drive it
+  builderPhase: 'configure' | 'generating' | 'proposal'
   // optimize storytelling phase — drives map choreography (pulse the problem, then show the move)
   optimizePhase: 'idle' | 'diagnose' | 'proposal'
+  // guided presenter walkthrough (hidden in Data & Simulation) — steps the decision story
+  presenterOn: boolean
+  presenterStep: number
   zipBuilderOpen: boolean
   facilityId: string | null
   repDrillId: string | null // rep whose Intelligence drawer is open (map-level rep drill)
@@ -73,7 +78,10 @@ function freshState(): DemoState {
     audit: [],
     snapshotReady: false,
     builderOpen: false,
+    builderPhase: 'configure',
     optimizePhase: 'idle',
+    presenterOn: false,
+    presenterStep: 0,
     zipBuilderOpen: false,
     facilityId: null,
     repDrillId: null,
@@ -166,9 +174,33 @@ export const actions = {
   selectInsight(id: string | null, territoryId?: string | null) {
     set({ selectedInsightId: state.selectedInsightId === id ? null : id, selectedTerritoryId: territoryId ?? state.selectedTerritoryId, selectedKpi: null })
   },
-  openBuilder() { set({ builderOpen: true, selectedTerritoryId: 't-south', optimizePhase: 'diagnose' }) },
+  openBuilder() { set({ builderOpen: true, builderPhase: 'configure', selectedTerritoryId: 't-south', optimizePhase: 'diagnose' }) },
   closeBuilder() { set({ builderOpen: false, optimizePhase: 'idle' }) },
+  setBuilderPhase(p: DemoState['builderPhase']) { set({ builderPhase: p }) },
   setOptimizePhase(p: DemoState['optimizePhase']) { set({ optimizePhase: p }) },
+
+  // ---- guided presenter walkthrough ----
+  startPresenter() { set({ presenterOn: true }); (actions as any).presenterStepTo(0) },
+  exitPresenter() { (actions as any).presenterStepTo(0); set({ presenterOn: false }) },
+  // Set the complete canonical state for a step so navigating forward AND backward is deterministic.
+  presenterStepTo(n: number) {
+    const base = { selectedInsightId: null, selectedKpi: null, repDrillId: null, fromAccountId: null, facilityId: null, compareOpen: false, assistantOpen: false, tab: 'home' as TabKey }
+    switch (n) {
+      case 0: // Baseline — clean market, nothing selected
+        set({ ...base, optimizationApplied: false, builderOpen: false, builderPhase: 'configure', optimizePhase: 'idle', selectedTerritoryId: null, undoLabel: null }); break
+      case 1: // Diagnose — open builder, pulse the problem in South
+        set({ ...base, optimizationApplied: false, builderOpen: true, builderPhase: 'configure', optimizePhase: 'diagnose', selectedTerritoryId: 't-south' }); break
+      case 2: // Analyze — run the optimizer choreography
+        set({ ...base, optimizationApplied: false, builderOpen: true, builderPhase: 'generating', optimizePhase: 'diagnose', selectedTerritoryId: 't-south' }); break
+      case 3: // Proposal — before/after + reassignment curve
+        set({ ...base, optimizationApplied: false, builderOpen: true, builderPhase: 'proposal', optimizePhase: 'proposal', selectedTerritoryId: 't-south' }); break
+      case 4: // Apply — commit the simulation, KPIs move to 90%
+        set({ ...base, optimizationApplied: true, builderOpen: false, builderPhase: 'configure', optimizePhase: 'idle', selectedTerritoryId: 't-south', undoLabel: null }); break
+      case 5: // Business impact — South is Healthy, decision has propagated
+        set({ ...base, optimizationApplied: true, builderOpen: false, builderPhase: 'configure', optimizePhase: 'idle', selectedTerritoryId: 't-south' }); break
+    }
+    set({ presenterStep: n })
+  },
   openZipBuilder() { set({ zipBuilderOpen: true, tab: 'home' }) },
   closeZipBuilder() { set({ zipBuilderOpen: false }) },
   openFacility(id: string) { set({ facilityId: id }) },

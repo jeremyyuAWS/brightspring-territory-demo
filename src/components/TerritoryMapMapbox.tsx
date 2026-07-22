@@ -640,7 +640,7 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
       // frame both endpoints (leave room on the right for the open drawer)
       const lngs = [elm.lng, dest[0]], lats = [elm.lat, dest[1]]
       map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: { top: 70, bottom: 70, left: 60, right: 440 }, duration: 800, maxZoom: 12 })
+        { padding: { top: 70, bottom: sRef.current.presenterOn ? 170 : 70, left: 60, right: 440 }, duration: 800, maxZoom: 12 })
       // ants-marching dash so the reassignment reads as motion toward Central
       const DASH_SEQ: number[][] = [
         [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5],
@@ -668,7 +668,9 @@ export function TerritoryMapMapbox({ token, onFail }: { token: string; onFail?: 
     if (selId && TERRITORY_POLYGONS[selId]) {
       const ring = TERRITORY_POLYGONS[selId]
       const lngs = ring.map(p => p[0]); const lats = ring.map(p => p[1])
-      map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, duration: 850, maxZoom: 12.5 })
+      // extra bottom room when the presenter bar is docked, so pulses/curves aren't hidden behind it
+      const pad = s.presenterOn ? { top: 70, left: 70, right: 70, bottom: 160 } : 70
+      map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: pad, duration: 850, maxZoom: 12.5 })
     } else {
       map.fitBounds(RICHMOND_BOUNDS, { padding: 30, duration: 850 })
     }

@@ -1,4 +1,5 @@
 import { Drawer } from '../ui'
+import { actions } from '../store'
 
 const ROWS: { feature: string; kind: 'Mocked' | 'Simulated' | 'Future'; note: string }[] = [
   { feature: 'Territory, rep & account data', kind: 'Mocked', note: 'Synthetic, non-PHI seed (seed-v1). 5 territories, 6 reps, 52 accounts.' },
@@ -35,6 +36,15 @@ export function DataSimPanel({ onClose }: { onClose: () => void }) {
       <p className="muted" style={{ fontSize: 12, marginTop: 14 }}>
         Production path: the same model can be fed by Salesforce / Morado account data and HCHB referral signals once interfaces are agreed.
       </p>
+
+      <div className="section-title">Presenting to leadership</div>
+      <div className="callout" style={{ marginBottom: 10 }}>
+        <span className="ico">▶</span>
+        <div>Guided walkthrough steps the whole story — Baseline → Diagnose → Analyze → Proposal → Apply → Business impact — with narration and ← / → keys. The app drives itself; no manual clicking mid-demo.</div>
+      </div>
+      <button className="btn primary" style={{ width: '100%' }} onClick={() => { actions.startPresenter(); onClose() }}>
+        ▶ Start guided walkthrough
+      </button>
     </Drawer>
   )
 }

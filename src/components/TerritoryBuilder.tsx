@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { actions } from '../store'
+import { useState, useEffect, useRef } from 'react'
+import { actions, useStore } from '../store'
 import { BEFORE_AFTER, PROPOSED_CHANGES } from '../seed'
 import { Drawer, LoadingSteps, useChoreography, AnimatedNumber } from '../ui'
 
@@ -13,12 +13,15 @@ const OBJECTIVE = {
 
 const STEPS = ['Analyzing representative capacity', 'Checking priority coverage gaps', 'Building territory proposal']
 
-type Phase = 'configure' | 'generating' | 'proposal'
-
 export function TerritoryBuilder() {
-  const [phase, setPhase] = useState<Phase>('configure')
+  // phase lives in the store so the presenter walkthrough can drive it too
+  const phase = useStore().builderPhase
+  const presenterOn = useStore().presenterOn
   const [selChange, setSelChange] = useState<string | null>(null)
-  const done = useChoreography(STEPS, phase === 'generating', () => setPhase('proposal'))
+  // in presenter mode the walkthrough advances phases; otherwise the choreography auto-advances
+  const presenterRef = useRef(presenterOn)
+  presenterRef.current = presenterOn
+  const done = useChoreography(STEPS, phase === 'generating', () => { if (!presenterRef.current) actions.setBuilderPhase('proposal') })
   // drive the map choreography: diagnose (pulse the problem) → proposal (show the move)
   useEffect(() => { actions.setOptimizePhase(phase === 'proposal' ? 'proposal' : 'diagnose') }, [phase])
 
@@ -28,13 +31,13 @@ export function TerritoryBuilder() {
       footer={
         phase === 'proposal'
           ? <>
-            <button className="btn" onClick={() => setPhase('configure')}>Back</button>
+            <button className="btn" onClick={() => actions.setBuilderPhase('configure')}>Back</button>
             <button className="btn primary" onClick={() => actions.applyOptimization()}>Apply simulation</button>
           </>
           : phase === 'configure'
             ? <>
               <button className="btn" onClick={() => actions.closeBuilder()}>Cancel</button>
-              <button className="btn primary" onClick={() => setPhase('generating')}>Generate proposal</button>
+              <button className="btn primary" onClick={() => actions.setBuilderPhase('generating')}>Generate proposal</button>
             </>
             : <button className="btn" disabled>Generating…</button>
       }>

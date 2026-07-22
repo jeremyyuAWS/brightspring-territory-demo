@@ -5,6 +5,7 @@ import { Plan } from './views/Plan'
 import { Today } from './views/Today'
 import { Accounts } from './views/Accounts'
 import { DataSimPanel } from './components/DataSimPanel'
+import { Presenter } from './components/Presenter'
 import { Assistant } from './assistant/Assistant'
 import { useEscClose } from './ui'
 
@@ -84,6 +85,7 @@ export default function App() {
       )}
 
       {showInfo && <DataSimPanel onClose={() => setShowInfo(false)} />}
+      <Presenter />
       <Assistant />
     </div>
   )

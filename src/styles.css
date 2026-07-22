@@ -282,6 +282,34 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 .toast.toast-compact .dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; flex: none; }
 .toast.toast-compact .tbtn { padding: 3px 9px; font-size: 11.5px; }
 
+/* ---------- presenter walkthrough ---------- */
+.presenter { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 55; width: min(880px, calc(100vw - 32px)); }
+/* when the Territory Builder drawer (560px, right) is open, sit fully in the left area beside it */
+.presenter.with-drawer { left: 24px; right: 584px; transform: none; width: auto; }
+.presenter-rail { background: #0f172a; color: #fff; border-radius: 14px; box-shadow: 0 10px 40px rgba(15,23,42,.35); border: 1px solid rgba(255,255,255,.1); overflow: hidden; animation: slideup .25s ease; }
+.presenter-head { display: flex; align-items: center; gap: 12px; padding: 9px 14px; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.08); }
+.presenter-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #c4b5fd; text-transform: uppercase; }
+.presenter-dots { display: flex; gap: 7px; flex: 1; }
+.pdot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.22); border: none; padding: 0; cursor: pointer; transition: background .2s, transform .2s; }
+.pdot:hover { background: rgba(255,255,255,.45); }
+.pdot.done { background: #34d399; }
+.pdot.on { background: #fff; transform: scale(1.35); }
+.presenter-exit { background: transparent; border: 1px solid rgba(255,255,255,.25); color: rgba(255,255,255,.85); font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 7px; cursor: pointer; }
+.presenter-exit:hover { background: rgba(255,255,255,.1); }
+.presenter-body { display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
+.presenter-step { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; }
+.presenter-n { flex: none; font-size: 12px; font-weight: 800; color: #0f172a; background: #fff; border-radius: 999px; padding: 3px 9px; margin-top: 1px; }
+.presenter-title { font-size: 14px; font-weight: 700; }
+.presenter-caption { font-weight: 500; color: #94a3b8; font-size: 12.5px; }
+.presenter-narration { font-size: 12.5px; color: #cbd5e1; line-height: 1.45; margin-top: 3px; }
+.presenter-controls { display: flex; gap: 8px; flex: none; align-items: center; }
+.presenter-controls .btn { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: #fff; }
+.presenter-controls .btn:hover:not(:disabled) { background: rgba(255,255,255,.2); }
+.presenter-controls .btn:disabled { opacity: .35; cursor: default; }
+.presenter-controls .btn.primary { background: #6366f1; border-color: #6366f1; }
+.presenter-controls .btn.primary:hover { background: #4f46e5; }
+@media (max-width: 900px) { .presenter.with-drawer { right: 24px; } .presenter-narration { display: none; } }
+
 /* ---------- section grid ---------- */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .stat-row { display: flex; flex-wrap: wrap; gap: 10px; }
