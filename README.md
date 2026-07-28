@@ -85,11 +85,40 @@ locally (no Isochrone API call) so the critical demo path stays deterministic an
 - **Safety** — referrals use identifiers only (e.g. `R-1042`); no patient names, DOB, diagnosis,
   or payer anywhere.
 
+## Synthetic calendar (`src/calendar.ts`)
+
+Every rep has a generated 6-week calendar (2 weeks back, 3 forward, weekdays only), built from
+the seeded accounts and referrals so names, territories and tiers stay self-consistent with the
+rest of the demo. It is deterministic — the same rep and date always produce the same day, so a
+demo replays identically.
+
+The day shape is realistic on purpose: working hours with a home-by target, lunch, Monday market
+huddles, Friday admin blocks and lighter Friday load, protected personal commitments, drive legs
+between stops, and genuine open gaps. Those gaps are what `findOpenSlots()` searches, so when the
+copilot reschedules something it lands in a real opening rather than an invented one. Today's
+column is transcribed from `today.ts` rather than generated, so the Today view and the calendar
+never disagree about the same day.
+
+Any calendar-shaped copilot turn opens the **left calendar drawer** (`CalendarDrawer.tsx`). It is
+non-modal, so the copilot stays live on the right while the calendar shows the change: a proposed
+reschedule renders the original slot as a ghost and the new slot highlighted, and only becomes
+real when you approve it in the copilot. Reschedules are undoable and cleared by Reset demo.
+
+### Re-anchoring the demo clock
+
+`DEMO_TODAY` in `src/calendar.ts` is the single source of truth for the calendar's "today", set to
+`2026-07-22` to match the seeded data. Changing it there alone will desync the rest of the demo —
+account activity dates, referral received/follow-up dates, and the task due dates hardcoded in
+`store.ts` are all generated around that same date. Moving the whole demo to a new date means
+shifting those together, ideally by whole weeks so weekday alignment (and the Wednesday-shaped
+`today.ts` timeline) still holds.
+
 ## Structure
 
 ```
 src/
   seed.ts        deterministic synthetic data + health model + fixed proposal
+  calendar.ts    synthetic multi-week rep calendars, open-slot finder, reschedule builder
   geo.ts         Richmond lng/lat polygons, GeoJSON builders, mock isochrones/routes
   store.ts       demoState (localStorage), audit, undo, reset, snapshot export
   selectors.ts   derived KPIs, insights, funnel, effective assignments
@@ -99,5 +128,6 @@ src/
     TerritoryMapMapbox     Mapbox GL map, layers, clustering, popups, P1 overlays, Layers control
     TerritoryMapFallback   token-free inline-SVG map (also used as the resilience fallback)
     TerritoryMap           the SVG map itself
+    CalendarDrawer         left-anchored calendar; opens on AI calendar actions
     TerritoryBuilder, CompareReps, ReferralForm, DispositionForm, DataSimPanel
 ```

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore, actions, type DemoState } from '../store'
 import type { ChatMessage, AssistantProposal } from '../types'
-import { runEngine, detectChips, SUGGESTED_PROMPTS } from './engine'
+import { runEngine, detectChips, SUGGESTED_PROMPTS, type EngineResult } from './engine'
 import { ACCOUNTS, OPTIMIZED_CAPACITY, REPS } from '../seed'
 import { territoryById, repById, metricsFor, accountCovered, facilitySize } from '../selectors'
 
@@ -69,7 +69,16 @@ function contextAnswer(text: string, s: DemoState): string | null {
   return null
 }
 
+// Messages persist across a page reload but this counter doesn't, so seed it from what's
+// already stored — otherwise a reloaded demo re-issues m-1/m-2, colliding with existing
+// messages (duplicate React keys, and a fresh proposal inheriting the old one's "Applied").
 let mid = 0
+let midSeeded = false
+function seedMid(existing: ChatMessage[]) {
+  if (midSeeded) return
+  midSeeded = true
+  for (const m of existing) mid = Math.max(mid, Number(m.id.slice(2)) || 0)
+}
 const msgId = () => `m-${++mid}`
 
 const CHIP_ICON: Record<string, string> = { account: '🏥', territory: '📍', contact: '👤', time: '🗓️', referral: '↪', constraint: '⛭' }
@@ -103,25 +112,38 @@ export function Assistant() {
 
   const send = (text: string) => {
     const clean = text.trim(); if (!clean) return
+    seedMid(s.messages)
     setInput('')
     actions.pushMemory(detectChips(clean))
     actions.addMessage({ id: msgId(), role: 'user', text: clean })
     const grounded = contextAnswer(clean, s)
-    const res = grounded ? { reply: grounded } : runEngine(clean)
+    const res: EngineResult = grounded ? { reply: grounded } : runEngine(clean, s.calendarMoves)
     if (res.navigate) actions.setTab(res.navigate)
     // brief “thinking” delay for realism
     setTimeout(() => {
       actions.addMessage({ id: msgId(), role: 'assistant', text: res.reply, proposal: res.proposal })
         ; (window as any).__lastEngine = res // stash concrete writes for approve
+      // §6 — any calendar-shaped turn opens the left drawer; a proposal also previews the moves
+      if (res.calendar) {
+        if (res.calendar.moves?.length) actions.proposeCalendarMoves(res.calendar.repId, res.calendar.moves)
+        else actions.openCalendar(res.calendar.repId)
+      }
     }, 260)
   }
 
   const approve = (m: ChatMessage) => {
-    const p = m.proposal!; const res = (window as any).__lastEngine
+    const p = m.proposal!; const res: EngineResult | undefined = (window as any).__lastEngine
     if (p.kind === 'crm' && res?.crm) actions.applyCrm(res.crm.activity, res.crm.task)
-    else if (p.kind === 'reschedule' && res?.reschedule) actions.applyReschedule(res.reschedule)
+    else if (p.kind === 'reschedule' && res?.reschedule) {
+      actions.applyReschedule(res.reschedule, res.calendar?.moves ?? [], res.calendar?.repId ?? 'r-jordan')
+    }
     else if (p.kind === 'monthlyPlan') actions.applyMonthlyPlan()
     actions.setProposalStatus(m.id, 'applied')
+  }
+
+  const dismiss = (m: ChatMessage) => {
+    if (m.proposal?.kind === 'reschedule') actions.clearCalendarProposal()
+    actions.setProposalStatus(m.id, 'undone')
   }
 
   return (
@@ -165,7 +187,7 @@ export function Assistant() {
           {s.messages.map(m => (
             <div key={m.id} className={`cp-msg ${m.role}`}>
               <div className="cp-bubble"><RichText text={m.text} /></div>
-              {m.proposal && <ProposalCard m={m} onApprove={() => approve(m)} />}
+              {m.proposal && <ProposalCard m={m} onApprove={() => approve(m)} onDismiss={() => dismiss(m)} />}
             </div>
           ))}
         </div>
@@ -181,7 +203,7 @@ export function Assistant() {
   )
 }
 
-function ProposalCard({ m, onApprove }: { m: ChatMessage; onApprove: () => void }) {
+function ProposalCard({ m, onApprove, onDismiss }: { m: ChatMessage; onApprove: () => void; onDismiss: () => void }) {
   const p = m.proposal as AssistantProposal
   return (
     <div className={`cp-proposal ${p.status}`}>
@@ -207,7 +229,7 @@ function ProposalCard({ m, onApprove }: { m: ChatMessage; onApprove: () => void 
       )}
       {p.status === 'pending'
         ? <div className="cp-prop-actions">
-          <button className="btn sm" onClick={() => actions.setProposalStatus(m.id, 'undone')}>Dismiss</button>
+          <button className="btn sm" onClick={onDismiss}>Dismiss</button>
           <button className="btn primary sm" onClick={onApprove}>Approve &amp; apply</button>
         </div>
         : p.status === 'applied'

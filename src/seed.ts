@@ -6,7 +6,7 @@ import type {
 import { TERRITORY_BBOX } from './geo'
 
 // ---------- deterministic PRNG ----------
-function mulberry32(seed: number) {
+export function mulberry32(seed: number) {
   return function () {
     seed |= 0; seed = (seed + 0x6d2b79f5) | 0
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)

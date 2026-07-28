@@ -7,6 +7,7 @@ import { Accounts } from './views/Accounts'
 import { DataSimPanel } from './components/DataSimPanel'
 import { Presenter } from './components/Presenter'
 import { Assistant } from './assistant/Assistant'
+import { CalendarDrawer } from './components/CalendarDrawer'
 import { useEscClose } from './ui'
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -54,6 +55,7 @@ export default function App() {
         </nav>
         <div className="spacer" />
         <span className="env-pill"><span className="dot" /> Demo · Synthetic Data</span>
+        <button className={`top-btn${s.calendarOpen ? ' on' : ''}`} onClick={() => actions.toggleCalendar()}>🗓️ Calendar</button>
         <button className="top-btn ai" onClick={() => actions.toggleAssistant(true)}>◇ Ask Copilot</button>
         <button className="top-btn" onClick={() => setShowInfo(true)}>Data &amp; Simulation</button>
         <button className="top-btn" onClick={() => { if (actions.hasChanges()) setShowReset(true); else actions.reset() }}>↺ Reset demo</button>
@@ -86,6 +88,7 @@ export default function App() {
 
       {showInfo && <DataSimPanel onClose={() => setShowInfo(false)} />}
       <Presenter />
+      <CalendarDrawer />
       <Assistant />
     </div>
   )

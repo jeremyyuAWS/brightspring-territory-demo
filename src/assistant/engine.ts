@@ -2,8 +2,12 @@
 // Matches user input to one of the agentic flows and returns a scripted reply,
 // an optional structured proposal, and any working-memory chips detected.
 import type { MemoryChip, AssistantProposal, Activity, FollowUpTask } from '../types'
+import {
+  DEMO_TODAY, proposeReschedule, calendarWithMoves, eventsOn, findOpenSlots,
+  addDays as calAddDays, fmtDay, fmtDayShort, fmtTimeLong, isWeekday, weekDays, weekStart,
+  type CalMove,
+} from '../calendar'
 
-const DEMO_TODAY = '2026-07-22'
 let seq = 0
 const uid = (p: string) => `${p}-${++seq}`
 
@@ -45,6 +49,9 @@ export interface EngineResult {
   reschedule?: { title: string; accountName: string; dueDate: string }[]
   monthlyPlan?: boolean
   navigate?: 'plan' | 'today' | 'accounts' | 'home'
+  // §6 — any calendar-shaped turn opens the left calendar drawer. `moves` present = a
+  // proposal to preview (ghost → new slot); absent = a read-only look at the calendar.
+  calendar?: { repId: string; moves?: CalMove[] }
 }
 
 // ---------- CRM capture ----------
@@ -97,36 +104,94 @@ function crmFlow(text: string): EngineResult {
 }
 
 // ---------- Emergency reschedule ----------
-function rescheduleFlow(): EngineResult {
-  const moved = [
-    { title: 'Intro visit — Woodlake Skilled Nursing', accountName: 'Woodlake', dueDate: addDays(DEMO_TODAY, 1) },
-    { title: 'Quarterly check-in — Brandermill Physicians', accountName: 'Brandermill', dueDate: addDays(DEMO_TODAY, 2) },
-    { title: 'Service expansion — Rockwood Assisted Living', accountName: 'Rockwood', dueDate: addDays(DEMO_TODAY, 3) },
-  ]
+// Reads the rep's real synthetic calendar, moves everything from the cut-off time into genuine
+// openings, and hands the moves to the left drawer so the change is visible, not just described.
+function rescheduleFlow(text: string, moves: CalMove[]): EngineResult {
+  const repId = 'r-jordan'
+  const t = text.toLowerCase()
+  // "clear my afternoon" → noon; "clear my day" → start of day
+  const fromMin = /morning/.test(t) ? 8 * 60 : /day|everything/.test(t) && !/afternoon/.test(t) ? 8 * 60 : 12 * 60
+  const cal = proposeReschedule(repId, fromMin, moves)
+  const label = fromMin <= 8 * 60 ? 'day' : 'afternoon'
+
+  if (!cal.length) {
+    return {
+      reply: `Your ${label} is already clear — there's nothing left to move. Want me to look at tomorrow instead?`,
+      calendar: { repId },
+    }
+  }
+
+  const urgent = cal.filter(m => /follow-up|referral/i.test(m.title))
+  const openings = cal.map(m => `${fmtDayShort(m.toDate)} ${fmtTimeLong(m.toStart)}`).join(', ')
+
   const proposal: AssistantProposal = {
     id: uid('p'), kind: 'reschedule', status: 'pending',
-    title: 'Emergency reschedule — Jordan, this afternoon',
-    summary: 'Afternoon protected. 3 unconfirmed stops moved; the urgent R-1042 follow-up is preserved and drafts are ready.',
+    title: `Emergency reschedule — Jordan, this ${label}`,
+    summary: `${label[0].toUpperCase() + label.slice(1)} protected. ${cal.length} ${cal.length === 1 ? 'meeting' : 'meetings'} moved into real openings; protected personal time and completed stops untouched.`,
     fields: [
-      { label: 'Protected time', value: 'Today 12:00 PM → end of day', changed: true },
-      { label: 'Meetings affected', value: '3 unconfirmed stops', changed: true },
-      { label: 'Urgent preserved', value: 'R-1042 (Elmington) follow-up → tomorrow 9:00 AM', changed: true },
-      { label: 'New openings used', value: 'Tomorrow 9:00 / 10:30, Thu 1:00', changed: true },
-      { label: 'Customer notes', value: '3 friendly reschedule drafts prepared' },
+      { label: 'Protected time', value: `Today ${fmtTimeLong(fromMin)} → end of day`, changed: true },
+      { label: 'Meetings affected', value: `${cal.length} ${cal.length === 1 ? 'stop' : 'stops'}`, changed: true },
+      { label: 'Urgent preserved', value: urgent.length ? `${urgent.length} referral follow-up${urgent.length > 1 ? 's' : ''} kept, not dropped` : 'No time-sensitive referrals in the window' },
+      { label: 'New openings used', value: openings, changed: true },
+      { label: 'Customer notes', value: `${cal.length} friendly reschedule draft${cal.length > 1 ? 's' : ''} prepared` },
       { label: 'Home-by target', value: 'Restored — home by 5:30 PM', changed: true },
     ],
-    changes: [
-      { label: 'Woodlake Skilled Nursing', detail: '12:00 PM today → tomorrow 9:00 AM (draft: “A family matter came up…”)' },
-      { label: 'Brandermill Physicians', detail: '2:30 PM today → Wed 10:30 AM (draft prepared)' },
-      { label: 'Rockwood Assisted Living', detail: '4:00 PM today → Thu 1:00 PM (draft prepared)' },
-      { label: 'R-1042 follow-up (Elmington)', detail: 'Kept as high priority — moved to tomorrow 9:00 AM, not dropped' },
-      { label: 'Monthly plan', detail: "Week's coverage rebalanced so no Tier-1 account slips" },
-    ],
+    changes: cal.map(m => ({
+      label: m.accountName,
+      detail: `${fmtTimeLong(m.fromStart)} today → ${fmtDay(m.toDate)} ${fmtTimeLong(m.toStart)} — ${m.reason}`,
+    })),
   }
   return {
-    reply: `I'm sorry to hear that — I've protected your afternoon. I found **3 affected stops**, kept the **urgent R-1042 follow-up**, found new openings, and drafted friendly customer notes. Nothing changes until you approve.`,
-    proposal, reschedule: moved, navigate: 'today',
+    reply: `I'm sorry to hear that — I've protected your ${label}. I found **${cal.length} affected ${cal.length === 1 ? 'stop' : 'stops'}**, landed each one in a real opening, and drafted friendly customer notes. **Your calendar is open on the left** so you can see exactly what moves. Nothing changes until you approve.`,
+    proposal, reschedule: cal.map(m => ({ title: m.title, accountName: m.accountName, dueDate: m.toDate })),
+    calendar: { repId, moves: cal }, navigate: 'today',
   }
+}
+
+// ---------- Read-only calendar questions ----------
+// "What's on Thursday?", "show me my week", "where do I have room?" — opens the drawer without
+// proposing anything, so the calendar is a first-class answer surface rather than a wall of text.
+function calendarQueryFlow(text: string, moves: CalMove[]): EngineResult {
+  const repId = 'r-jordan'
+  const t = text.toLowerCase()
+  const events = calendarWithMoves(repId, moves)
+
+  // free/open-time question
+  if (/free|open|room|availab|slot|gap/.test(t)) {
+    const slots = findOpenSlots(repId, DEMO_TODAY, 45, 4, moves)
+    if (!slots.length) return { reply: `You're fully committed for the next three weeks — nothing opens up without moving something.`, calendar: { repId } }
+    return {
+      reply: `You've got room at:\n${slots.map(s => `• **${fmtDay(s.date)}** at ${fmtTimeLong(s.start)}`).join('\n')}\n\nEach one clears your existing stops and protected time with travel buffer. Calendar's open on the left.`,
+      calendar: { repId },
+    }
+  }
+
+  // a specific named weekday
+  const NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const named = NAMES.findIndex(n => t.includes(n))
+  let target: string | null = null
+  if (/tomorrow/.test(t)) { target = calAddDays(DEMO_TODAY, 1); while (!isWeekday(target)) target = calAddDays(target, 1) }
+  else if (/today/.test(t)) target = DEMO_TODAY
+  else if (named >= 0) {
+    // the named day in the current or next week, whichever is next
+    const inWeek = weekDays(weekStart(DEMO_TODAY)).find(d => NAMES[new Date(`${d}T00:00:00Z`).getUTCDay()] === NAMES[named])
+    target = inWeek && inWeek >= DEMO_TODAY ? inWeek : weekDays(calAddDays(weekStart(DEMO_TODAY), 7)).find(d => NAMES[new Date(`${d}T00:00:00Z`).getUTCDay()] === NAMES[named]) ?? null
+  }
+
+  if (target) {
+    const day = eventsOn(events, target).filter(e => e.kind !== 'personal' || e.protectedTime)
+    if (!day.length) return { reply: `**${fmtDay(target)}** is clear — nothing scheduled yet.`, calendar: { repId } }
+    const lines = day.map(e => `• **${fmtTimeLong(e.start)}** — ${e.title}${e.purpose ? ` (${e.purpose})` : ''}${e.status === 'Unconfirmed' ? ' — *unconfirmed*' : ''}`).join('\n')
+    return { reply: `**${fmtDay(target)}** — ${day.length} ${day.length === 1 ? 'item' : 'items'}:\n${lines}\n\nOpened it on the left.`, calendar: { repId } }
+  }
+
+  // whole-week summary
+  const days = weekDays(weekStart(DEMO_TODAY))
+  const lines = days.map(d => {
+    const n = eventsOn(events, d).filter(e => e.kind === 'visit' || e.kind === 'referral' || e.kind === 'inservice').length
+    return `• **${fmtDay(d)}** — ${n} ${n === 1 ? 'stop' : 'stops'}`
+  }).join('\n')
+  return { reply: `Here's your week:\n${lines}\n\nCalendar's open on the left — click any day to drop into the route detail.`, calendar: { repId } }
 }
 
 // ---------- Monthly plan ----------
@@ -157,21 +222,29 @@ function monthlyPlanFlow(): EngineResult {
 }
 
 // ---------- router ----------
-export function runEngine(text: string): EngineResult {
+// `moves` is the set of already-approved calendar reschedules, so a second request reasons
+// about the calendar as it now stands rather than the pristine seed.
+export function runEngine(text: string, moves: CalMove[] = []): EngineResult {
   const t = text.toLowerCase()
   if (/log (a )?(visit|call)|met with|spoke with|note that/.test(t)) return crmFlow(text)
-  if (/emergency|clear (the rest of )?my (afternoon|day)|reschedule (anything|my)/.test(t)) return rescheduleFlow()
+  if (/emergency|clear (the rest of )?my (afternoon|day|morning)|reschedule (anything|my)|move (my|everything)/.test(t)) return rescheduleFlow(text, moves)
   if (/monthly plan|build.*plan|plan.*month|cover.*tier 1|cover every|month plan/.test(t)) return monthlyPlanFlow()
+  // read-only calendar questions — open the drawer, don't propose anything
+  if (/calendar|schedule|my week|this week|next week|what('?s| is) on|when am i|free|open slot|availab|room (for|to)|tomorrow|monday|tuesday|wednesday|thursday|friday/.test(t)) {
+    return calendarQueryFlow(text, moves)
+  }
   if (/move both|move them|both.*next week/.test(t)) {
     return { reply: `Got it — I'll move **both** of the accounts we were discussing to next week. They're still in my working memory, so you didn't have to repeat them. Want me to draft the reschedule?` }
   }
   return {
-    reply: `I can act across the whole workflow. Try:\n• “Log a visit at Woodhaven. Met Angela. Interested in the pharmacy proposal. Follow up in two weeks.”\n• “I have a family emergency — clear my afternoon and reschedule anything important.”\n• “Build a monthly plan that covers every Tier 1 account, protects my meetings and keeps Fridays lighter.”`,
+    reply: `I can act across the whole workflow. Try:\n• “Log a visit at Woodhaven. Met Angela. Interested in the pharmacy proposal. Follow up in two weeks.”\n• “I have a family emergency — clear my afternoon and reschedule anything important.”\n• “What's on my calendar Thursday?”\n• “Build a monthly plan that covers every Tier 1 account, protects my meetings and keeps Fridays lighter.”`,
   }
 }
 
 export const SUGGESTED_PROMPTS = [
   'Log a visit at Woodhaven. Met Angela. Interested in the pharmacy proposal. Follow up in two weeks.',
   'I have a family emergency — clear my afternoon and reschedule anything important.',
+  "What's on my calendar Thursday?",
+  'Where do I have room for a Tier 1 visit this week?',
   'Build a monthly plan that covers every Tier 1 account, protects my meetings and keeps Fridays lighter.',
 ]

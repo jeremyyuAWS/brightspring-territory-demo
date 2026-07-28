@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { Referral, AuditEntry, ReferralStage, MemoryChip, ChatMessage, FollowUpTask, Activity, AssistantProposal } from './types'
 import { REFERRALS, TERRITORIES, MARKET_BASELINE, MARKET_OPTIMIZED, REPS } from './seed'
+import { fmtDay, fmtTimeLong, type CalMove } from './calendar'
 
 export type TabKey = 'home' | 'plan' | 'today' | 'accounts'
 
@@ -50,6 +51,11 @@ export interface DemoState {
   scheduleFixes: Record<string, string> // repId -> fixId
   planStrategy: string | null // §4 applied plan-optimization strategy
   calendarSynced: boolean
+  // ---- §6 synthetic calendar ----
+  calendarOpen: boolean
+  calendarRepId: string | null
+  calendarPending: CalMove[] // proposed but not approved — rendered as ghost → preview
+  calendarMoves: CalMove[] // approved reschedules, applied to the rendered calendar
   mapProvider: 'leaflet' | 'mapbox'
   placedRemaining: boolean
 }
@@ -99,13 +105,19 @@ function freshState(): DemoState {
     scheduleFixes: {},
     planStrategy: null,
     calendarSynced: false,
+    calendarOpen: false,
+    calendarRepId: null,
+    calendarPending: [],
+    calendarMoves: [],
     mapProvider: 'leaflet',
     placedRemaining: false,
   }
 }
 
 // ---- undo memory (kept outside serialized state) ----
-type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied' | 'planStrategy' | 'placedRemaining'>
+// calendarPending is deliberately NOT in the snapshot: undo reverts what was *applied*, it
+// doesn't resurrect a proposal the user already acted on.
+type UndoSlice = Pick<DemoState, 'referrals' | 'optimizationApplied' | 'tasks' | 'extraActivities' | 'monthlyPlanApplied' | 'rescheduleApplied' | 'planStrategy' | 'placedRemaining' | 'calendarMoves'>
 let undoSnapshot: UndoSlice | null = null
 function snapUndo(): UndoSlice {
   return {
@@ -117,6 +129,7 @@ function snapUndo(): UndoSlice {
     rescheduleApplied: state.rescheduleApplied,
     planStrategy: state.planStrategy,
     placedRemaining: state.placedRemaining,
+    calendarMoves: state.calendarMoves.map(m => ({ ...m })),
   }
 }
 
@@ -302,14 +315,21 @@ export const actions = {
     set({ extraActivities: [activity, ...state.extraActivities], tasks: [task, ...state.tasks], undoLabel: `Undo CRM entry` })
   },
 
-  applyReschedule(moved: { title: string; accountName: string; dueDate: string }[]) {
+  applyReschedule(moved: { title: string; accountName: string; dueDate: string }[], calMoves: CalMove[] = [], repId = 'r-jordan') {
     undoSnapshot = snapUndo()
     const newTasks: FollowUpTask[] = moved.map((m, i) => ({
       id: `tk-resched-${i}`, title: m.title, accountName: m.accountName, dueDate: m.dueDate,
       owner: 'Jordan Ellis', source: 'Emergency reschedule', done: false,
     }))
     addAudit({ actor: 'Jordan Ellis (AI agent)', action: 'Applied emergency reschedule', detail: 'Simulated · afternoon cleared', before: '3 afternoon stops + 1 referral follow-up', after: `${moved.length} rescheduled; urgent R-1042 follow-up preserved` })
-    set({ rescheduleApplied: true, tasks: [...newTasks, ...state.tasks], undoLabel: 'Undo reschedule' })
+    set({
+      rescheduleApplied: true, tasks: [...newTasks, ...state.tasks], undoLabel: 'Undo reschedule',
+      // commit the moves onto the calendar and keep the drawer open on the result
+      calendarMoves: [...state.calendarMoves, ...calMoves],
+      calendarPending: [],
+      calendarOpen: calMoves.length ? true : state.calendarOpen,
+      calendarRepId: calMoves.length ? repId : state.calendarRepId,
+    })
   },
 
   applyMonthlyPlan() {
@@ -363,6 +383,40 @@ export const actions = {
     set({ undoLabel: 'Undo optimize day' })
   },
 
+  // ---------- §6 synthetic calendar ----------
+  // The drawer is a companion panel, not a modal — it opens on the left so the copilot stays
+  // usable on the right and the presenter can watch a reschedule land on a real calendar.
+  openCalendar(repId?: string) { set({ calendarOpen: true, calendarRepId: repId ?? state.calendarRepId ?? 'r-jordan' }) },
+  closeCalendar() { set({ calendarOpen: false }) },
+  toggleCalendar(repId?: string) {
+    if (state.calendarOpen && (!repId || repId === state.calendarRepId)) set({ calendarOpen: false })
+    else set({ calendarOpen: true, calendarRepId: repId ?? state.calendarRepId ?? 'r-jordan' })
+  },
+  /** Show a proposal on the calendar without committing it (ghost at the old slot, preview at the new). */
+  proposeCalendarMoves(repId: string, moves: CalMove[]) {
+    set({ calendarOpen: true, calendarRepId: repId, calendarPending: moves })
+  },
+  clearCalendarProposal() { set({ calendarPending: [] }) },
+  /** Commit the pending moves — the calendar redraws with them in place, and it's undoable. */
+  applyCalendarMoves(repId: string, moves: CalMove[]) {
+    const list = moves.length ? moves : state.calendarPending
+    if (!list.length) return
+    addAudit({
+      actor: `${REPS.find(r => r.id === repId)?.name ?? 'Rep'} (AI agent)`,
+      action: `Rescheduled ${list.length} ${list.length === 1 ? 'meeting' : 'meetings'}`,
+      detail: 'Simulated · calendar write',
+      before: list.map(m => `${m.accountName} ${fmtDay(m.fromDate)} ${fmtTimeLong(m.fromStart)}`).join('; '),
+      after: list.map(m => `${m.accountName} ${fmtDay(m.toDate)} ${fmtTimeLong(m.toStart)}`).join('; '),
+      reason: 'Copilot reschedule — protected time and completed stops untouched',
+    })
+    set({
+      calendarMoves: [...state.calendarMoves, ...list],
+      calendarPending: [],
+      calendarOpen: true,
+      calendarRepId: repId,
+    })
+  },
+
   simulateCalendarSync() {
     addAudit({ actor: 'Demo Manager', action: 'Calendar sync (Google / M365)', detail: 'Demo simulation · busy blocks imported, personal time protected' })
     set({ calendarSynced: true })
@@ -384,6 +438,7 @@ export const actions = {
   hasChanges(): boolean {
     return state.optimizationApplied || state.audit.length > 0 || state.referrals.length !== REFERRALS.length
       || state.tasks.length > 0 || state.extraActivities.length > 0 || state.monthlyPlanApplied || state.rescheduleApplied || state.messages.length > 0
+      || state.calendarMoves.length > 0
   },
 }
 
