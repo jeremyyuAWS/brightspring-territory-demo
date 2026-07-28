@@ -4,6 +4,7 @@ import { REPS, TERRITORIES, OPTIMIZED_CAPACITY } from '../seed'
 import { statusFor } from '../selectors'
 import { DAYS, type RepDay, type TimelineItem, type ScheduleFix } from '../today'
 import { Drawer, StatusBadge } from '../ui'
+import { DEMO_TODAY, fmtDateLong } from '../calendar'
 import { RepView } from './RepView'
 
 export function Today() {
@@ -24,7 +25,7 @@ export function Today() {
             <button className={role === 'rep' ? 'active' : ''} onClick={() => setRole('rep')}>Rep View</button>
           </div>
         </div>
-        <div className="field"><label>Date</label><select disabled><option>Jul 22, 2026</option></select></div>
+        <div className="field"><label>Date</label><select disabled><option>{fmtDateLong(DEMO_TODAY)}</option></select></div>
         <div className="spacer" />
         {role === 'rep' && (
           <div className="field"><label>Representative</label>

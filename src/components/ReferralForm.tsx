@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { actions } from '../store'
 import { ACCOUNTS, TERRITORIES, REPS } from '../seed'
 import { Drawer } from '../ui'
+import { DEMO_TODAY, fromAnchor } from '../demoClock'
 import type { Referral } from '../types'
 
 export function ReferralForm({ accountId, onClose }: { accountId: string; onClose: () => void }) {
@@ -13,13 +14,13 @@ export function ReferralForm({ accountId, onClose }: { accountId: string; onClos
     accountId,
     sourceOrg: acct.name,
     serviceLine: 'Home Health',
-    receivedDate: '2026-07-22',
+    receivedDate: DEMO_TODAY,
     territoryId: terr.id,
     repId: rep.id,
     stage: 'Received',
     metFamily: 'Not Yet',
     notes: '',
-    followUpDate: '2026-07-27',
+    followUpDate: fromAnchor(5),
     owner: rep.name,
   })
   const upd = (p: Partial<Omit<Referral, 'id'>>) => setForm(f => ({ ...f, ...p }))

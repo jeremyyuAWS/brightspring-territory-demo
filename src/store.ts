@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { Referral, AuditEntry, ReferralStage, MemoryChip, ChatMessage, FollowUpTask, Activity, AssistantProposal } from './types'
 import { REFERRALS, TERRITORIES, MARKET_BASELINE, MARKET_OPTIMIZED, REPS } from './seed'
 import { fmtDay, fmtTimeLong, type CalMove } from './calendar'
+import { DEMO_TODAY, fromAnchor } from './demoClock'
 
 export type TabKey = 'home' | 'plan' | 'today' | 'accounts'
 
@@ -60,7 +61,9 @@ export interface DemoState {
   placedRemaining: boolean
 }
 
-const SEED_VERSION = 'seed-v1'
+// Bumped for the rolling demo clock: state persisted against the old fixed dates would show a
+// mix of eras (tasks due in the past, referrals dated before the seed), so it's discarded.
+const SEED_VERSION = 'seed-v2'
 const LS_KEY = 'brightspring.demoState.v1'
 
 const defaultFilters: Filters = {
@@ -340,7 +343,7 @@ export const actions = {
 
   applyRecovery(referralId: string, source: string, action: string) {
     undoSnapshot = snapUndo()
-    const task: FollowUpTask = { id: `tk-rec-${referralId}`, title: `Recovery: ${action}`, accountName: source, dueDate: '2026-07-23', owner: 'Jordan Ellis', source: 'Referral recovery', done: false }
+    const task: FollowUpTask = { id: `tk-rec-${referralId}`, title: `Recovery: ${action}`, accountName: source, dueDate: fromAnchor(1), owner: 'Jordan Ellis', source: 'Referral recovery', done: false }
     addAudit({ actor: 'Demo Manager', action: `Recovery action queued for ${referralId}`, detail: 'Simulated', after: action })
     set({ tasks: [task, ...state.tasks], undoLabel: `Undo recovery` })
   },
@@ -364,13 +367,13 @@ export const actions = {
 
   placeRemaining(accounts: { name: string }[]) {
     undoSnapshot = snapUndo()
-    const tasks: FollowUpTask[] = accounts.map((a, i) => ({ id: `tk-place-${i}`, title: `Place & schedule ${a.name}`, accountName: a.name, dueDate: '2026-07-25', owner: 'Demo Manager', source: 'Coverage placement', done: false }))
+    const tasks: FollowUpTask[] = accounts.map((a, i) => ({ id: `tk-place-${i}`, title: `Place & schedule ${a.name}`, accountName: a.name, dueDate: fromAnchor(3), owner: 'Demo Manager', source: 'Coverage placement', done: false }))
     addAudit({ actor: 'Demo Manager', action: `Placed ${accounts.length} remaining priority accounts`, detail: 'Simulated', after: `${accounts.map(a => a.name).join(', ')}` })
     set({ placedRemaining: true, tasks: [...tasks, ...state.tasks], undoLabel: 'Undo placement' })
   },
 
   addNearbyStop(name: string, note: string) {
-    const task: FollowUpTask = { id: `tk-near-${name}`, title: `Added to today: ${name}`, accountName: name, dueDate: '2026-07-22', owner: 'Field rep', source: 'Near-my-route', done: false }
+    const task: FollowUpTask = { id: `tk-near-${name}`, title: `Added to today: ${name}`, accountName: name, dueDate: DEMO_TODAY, owner: 'Field rep', source: 'Near-my-route', done: false }
     addAudit({ actor: 'Field rep (AI)', action: `Added ${name} to today's route`, detail: 'Simulated', after: note })
     set({ tasks: [task, ...state.tasks], undoLabel: 'Undo add stop' })
   },
@@ -424,7 +427,7 @@ export const actions = {
 
   addSourceToPlan(sourceName: string, winBack: string) {
     undoSnapshot = snapUndo()
-    const task: FollowUpTask = { id: `tk-src-${sourceName}`, title: `Win-back: ${winBack}`, accountName: sourceName, dueDate: '2026-07-28', owner: 'Jordan Ellis', source: 'Loyalty win-back', done: false }
+    const task: FollowUpTask = { id: `tk-src-${sourceName}`, title: `Win-back: ${winBack}`, accountName: sourceName, dueDate: fromAnchor(6), owner: 'Jordan Ellis', source: 'Loyalty win-back', done: false }
     addAudit({ actor: 'Demo Manager', action: `Added ${sourceName} to next planning period`, detail: 'Simulated · loyalty win-back', after: winBack })
     set({ tasks: [task, ...state.tasks], undoLabel: `Undo win-back` })
   },

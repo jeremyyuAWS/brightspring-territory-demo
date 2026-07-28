@@ -9,11 +9,11 @@
 import type { Account } from './types'
 import { ACCOUNTS, REPS, REFERRALS, mulberry32 } from './seed'
 import { DAYS, type TimelineItem } from './today'
+import { DEMO_TODAY, addDays, dow, isWeekday, daysBetween } from './demoClock'
 
-// Single source of truth for the demo clock. The seeded data (accounts, activities, referral
-// dates) is generated around this date, so changing it here alone would desync those — see
-// README "Re-anchoring the demo clock".
-export const DEMO_TODAY = '2026-07-22' // Wednesday
+// The demo clock lives in demoClock.ts and rolls with the real date; re-exported here because
+// most callers reach for it alongside the calendar helpers.
+export { DEMO_TODAY, addDays, dow, isWeekday, daysBetween }
 
 // window rendered by the calendar: 2 weeks back → 3 weeks forward
 export const WEEKS_BACK = 2
@@ -54,16 +54,7 @@ export interface CalMove {
   draft: string // friendly customer note the copilot prepares
 }
 
-// ---------- date helpers (UTC throughout, so the demo renders identically in any timezone) ----------
-export function addDays(iso: string, days: number): string {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
-}
-export function dow(iso: string): number {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0=Sun … 6=Sat
-}
-export function isWeekday(iso: string) { const w = dow(iso); return w >= 1 && w <= 5 }
+// ---------- date helpers ----------
 /** Monday of the week containing `iso`. */
 export function weekStart(iso: string): string {
   const w = dow(iso)
@@ -74,11 +65,6 @@ export function weekDays(iso: string): string[] {
   const mon = weekStart(iso)
   return [0, 1, 2, 3, 4].map(i => addDays(mon, i))
 }
-export function daysBetween(a: string, b: string): number {
-  const p = (s: string) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d) }
-  return Math.round((p(b) - p(a)) / 86400000)
-}
-
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DOW_LABEL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export function fmtDay(iso: string): string {
@@ -88,6 +74,11 @@ export function fmtDay(iso: string): string {
 export function fmtDayShort(iso: string): string {
   const [, m, d] = iso.split('-').map(Number)
   return `${MONTHS[m - 1]} ${d}`
+}
+/** "Jul 22, 2026" — the long form used in filter bars and headers. */
+export function fmtDateLong(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${MONTHS[m - 1]} ${d}, ${y}`
 }
 /** 510 → "8:30a" (matches the compact style already used in today.ts) */
 export function fmtTime(mins: number): string {
@@ -183,7 +174,23 @@ function todayEvents(repId: string): CalEvent[] {
     })
     pendingDrive = 0
   }
-  return out
+  // The authored day is weekday-agnostic, but the clock rolls — so if today happens to land on a
+  // Monday or Friday, add that weekday's fixture the generator would otherwise have supplied.
+  // Skipped when it would collide with the authored timeline, which always wins.
+  const free = (start: number, dur: number) => !out.some(e => start < e.start + e.dur && start + dur > e.start)
+  if (dow(DEMO_TODAY) === 1 && free(8 * 60, 45)) {
+    out.push({
+      id: `cal-${repId}-today-huddle`, repId, date: DEMO_TODAY, start: 8 * 60, dur: 45, kind: 'internal',
+      title: 'Market team huddle', purpose: 'Pipeline & coverage review', status: 'Completed',
+    })
+  }
+  if (dow(DEMO_TODAY) === 5 && free(15 * 60, 60)) {
+    out.push({
+      id: `cal-${repId}-today-admin`, repId, date: DEMO_TODAY, start: 15 * 60, dur: 60, kind: 'admin',
+      title: 'CRM catch-up & week close', purpose: 'Notes, follow-ups, next-week plan', status: 'Confirmed',
+    })
+  }
+  return out.sort((a, b) => a.start - b.start)
 }
 
 // ---------- generation ----------

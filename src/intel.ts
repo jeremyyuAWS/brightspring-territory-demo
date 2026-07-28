@@ -4,12 +4,7 @@ import type { Referral } from './types'
 import { TERRITORIES } from './seed'
 import { repById } from './selectors'
 
-const DEMO_TODAY = '2026-07-22'
-function daysBetween(a: string, b: string) {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000)
-}
+import { DEMO_TODAY, daysBetween } from './demoClock'
 
 // ---------- §12 Referral risk & recovery ----------
 export type RiskReason = 'Overdue follow-up' | 'No contact attempt' | 'Stalled in stage' | 'At risk of competitor loss' | 'Appointment incomplete'

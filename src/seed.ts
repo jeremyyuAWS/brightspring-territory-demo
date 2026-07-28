@@ -4,6 +4,9 @@ import type {
   RelationshipStatus, OpportunityBand,
 } from './types'
 import { TERRITORY_BBOX } from './geo'
+// Dates below are written against the authored anchor and rebased to the current demo era by
+// shift()/fromAnchor(), so the demo never reads as stale. See src/demoClock.ts.
+import { shift, fromAnchor } from './demoClock'
 
 // ---------- deterministic PRNG ----------
 export function mulberry32(seed: number) {
@@ -187,7 +190,7 @@ const FIRST_NAMES = ['Angela', 'Marcus', 'Priya', 'Denise', 'Robert', 'Lena', 'C
 const LAST_NAMES = ['Reyes', 'Cole', 'Nguyen', 'Barnes', 'Ellison', 'Okafor', 'Halstead', 'Vaughn', 'Meadows', 'Pierce', 'Bryant', 'Sandoval', 'Chase', 'Delgado', 'Frost', 'Whitaker', 'Novak', 'Iqbal', 'Beaumont', 'Ramsey', 'Salazar', 'Kimura', 'Odom', 'Pruitt']
 const CONTACT_ROLES = ['Administrator', 'Director of Nursing (DON)', 'Discharge Planner', 'Case Manager', 'Medical Director', 'Social Worker', 'Referral Coordinator']
 function repNameForAcct(a: Account) { return REPS.find(r => r.territoryId === a.territoryId)?.name ?? 'Unassigned' }
-function isoDaysAgo(n: number) { return new Date(Date.UTC(2026, 6, 21) - n * 86400000).toISOString().slice(0, 10) }
+function isoDaysAgo(n: number) { return fromAnchor(-1 - n) } // authored baseline was the day before the anchor
 function pickAt<T>(arr: T[], seed: number) { return arr[seed % arr.length] }
 
 function genContactsFor(a: Account): Contact[] {
@@ -254,11 +257,11 @@ const ELMINGTON_CONTACTS: Contact[] = [
   { id: 'c-4', accountId: ELMINGTON_ID, name: 'Grace Okafor', role: 'Case Manager', tenureYears: 3, relationship: 'Strong' },
 ]
 const ELMINGTON_ACTIVITIES: Activity[] = [
-  { id: 'v-1', accountId: ELMINGTON_ID, date: '2026-07-14', channel: 'Visit', outcome: 'Reviewed discharge pipeline with DON', owner: 'Jordan Ellis' },
-  { id: 'v-2', accountId: ELMINGTON_ID, date: '2026-07-07', channel: 'Call', outcome: 'Confirmed hospice eligibility criteria', owner: 'Jordan Ellis' },
-  { id: 'v-3', accountId: ELMINGTON_ID, date: '2026-06-30', channel: 'Visit', outcome: 'In-service on home health transitions', owner: 'Jordan Ellis' },
-  { id: 'v-4', accountId: ELMINGTON_ID, date: '2026-06-22', channel: 'Follow-up', outcome: 'Sent referral packet templates', owner: 'Jordan Ellis' },
-  { id: 'v-5', accountId: ELMINGTON_ID, date: '2026-06-15', channel: 'Note', outcome: 'Administrator flagged upcoming census growth', owner: 'Jordan Ellis' },
+  { id: 'v-1', accountId: ELMINGTON_ID, date: shift('2026-07-14'), channel: 'Visit', outcome: 'Reviewed discharge pipeline with DON', owner: 'Jordan Ellis' },
+  { id: 'v-2', accountId: ELMINGTON_ID, date: shift('2026-07-07'), channel: 'Call', outcome: 'Confirmed hospice eligibility criteria', owner: 'Jordan Ellis' },
+  { id: 'v-3', accountId: ELMINGTON_ID, date: shift('2026-06-30'), channel: 'Visit', outcome: 'In-service on home health transitions', owner: 'Jordan Ellis' },
+  { id: 'v-4', accountId: ELMINGTON_ID, date: shift('2026-06-22'), channel: 'Follow-up', outcome: 'Sent referral packet templates', owner: 'Jordan Ellis' },
+  { id: 'v-5', accountId: ELMINGTON_ID, date: shift('2026-06-15'), channel: 'Note', outcome: 'Administrator flagged upcoming census growth', owner: 'Jordan Ellis' },
 ]
 const ELMINGTON_DEALS: Deal[] = [
   { id: 'd-1', accountId: ELMINGTON_ID, name: 'Home Health preferred-provider agreement', stage: 'Negotiation', valueBand: '$$$', serviceLine: 'Home Health', nextStep: 'Legal review of coverage terms' },
@@ -279,8 +282,8 @@ function genReferrals(): Referral[] {
   // Fixed hero referral R-1042 on Elmington
   out.push({
     id: 'R-1042', accountId: ELMINGTON_ID, sourceOrg: 'Elmington Rehabilitation', serviceLine: 'Home Health',
-    receivedDate: '2026-07-16', territoryId: 't-south', repId: 'r-jordan', stage: 'Met Patient/Family',
-    metFamily: 'Yes', notes: 'Post-surgical rehab discharge; strong home health fit. Family engaged.', followUpDate: '2026-07-23', owner: 'Jordan Ellis',
+    receivedDate: shift('2026-07-16'), territoryId: 't-south', repId: 'r-jordan', stage: 'Met Patient/Family',
+    metFamily: 'Yes', notes: 'Post-surgical rehab discharge; strong home health fit. Family engaged.', followUpDate: shift('2026-07-23'), owner: 'Jordan Ellis',
   })
   for (let i = 1; i < total; i++) {
     const t = TERRITORIES[Math.floor(rnd() * TERRITORIES.length)]
@@ -298,14 +301,17 @@ function genReferrals(): Referral[] {
     else if (roll < 0.855) stage = 'Accepted'
     else stage = 'Admitted'
     const rep = REPS.find(r => r.territoryId === t.id)!
-    const recv = new Date(2026, 6, 1 + Math.floor(rnd() * 20))
-    const fu = new Date(recv.getTime() + (3 + Math.floor(rnd() * 10)) * 86400000)
+    // authored window was Jul 1–20 against a Jul 22 anchor, i.e. 21 to 2 days before today.
+    // Same two rnd() draws in the same order, so the tuned conversion figures are unchanged.
+    const recvOff = -21 + Math.floor(rnd() * 20)
+    const recv = fromAnchor(recvOff)
+    const fu = fromAnchor(recvOff + 3 + Math.floor(rnd() * 10))
     out.push({
       // the account IS the referring facility; keep the (rnd()) to preserve the tuned PRNG sequence (31% conversion etc.)
       id: `R-${1043 + i}`, accountId: acct.id, sourceOrg: (rnd(), acct.name),
-      serviceLine: rnd() < 0.6 ? 'Home Health' : 'Hospice', receivedDate: recv.toISOString().slice(0, 10),
+      serviceLine: rnd() < 0.6 ? 'Home Health' : 'Hospice', receivedDate: recv,
       territoryId: t.id, repId: rep.id, stage, metFamily: stage === 'Received' || stage === 'Contact Attempted' ? 'Not Yet' : rnd() < 0.7 ? 'Yes' : 'No',
-      notes: '', followUpDate: fu.toISOString().slice(0, 10), owner: rep.name,
+      notes: '', followUpDate: fu, owner: rep.name,
     })
   }
   // Deterministically make ~3 South Richmond referrals clearly at-risk (backdated / overdue / lost)
@@ -314,9 +320,9 @@ function genReferrals(): Referral[] {
   const southOpen = out.filter(r => r.territoryId === 't-south' && r.id !== 'R-1042'
     && !['Accepted', 'Admitted'].includes(r.stage))
   const atRiskSpecs: { stage: Referral['stage']; received: string; follow: string }[] = [
-    { stage: 'Received', received: '2026-07-02', follow: '2026-07-08' },
-    { stage: 'Contact Attempted', received: '2026-07-04', follow: '2026-07-10' },
-    { stage: 'Lost to Competitor', received: '2026-07-06', follow: '2026-07-12' },
+    { stage: 'Received', received: shift('2026-07-02'), follow: shift('2026-07-08') },
+    { stage: 'Contact Attempted', received: shift('2026-07-04'), follow: shift('2026-07-10') },
+    { stage: 'Lost to Competitor', received: shift('2026-07-06'), follow: shift('2026-07-12') },
   ]
   southOpen.slice(0, 3).forEach((r, i) => {
     const spec = atRiskSpecs[i]

@@ -2,7 +2,8 @@
 
 A standalone, offline-capable demo of a territory-management app for management: view covered
 territory, assign reps to ensure coverage, and track referral attribution. Built per the
-_Territory Management Demo PRD_ (demo date July 22, 2026).
+_Territory Management Demo PRD_ (authored against July 22, 2026; the demo clock now rolls so
+"today" is always the day you present it — see [The demo clock](#the-demo-clock-srcdemoclockts)).
 
 **Synthetic, non-PHI, resettable data. No live Salesforce / HCHB / Morado integration.**
 Every operation is deterministic and reversible.
@@ -74,7 +75,7 @@ locally (no Isochrone API call) so the critical demo path stays deterministic an
    funnel and KPIs refresh.
 6. Return **Home** — improved coverage, audit trail, **Export leadership snapshot**.
 7. **Data & Simulation** (top bar) — states what is mocked, simulated, and future-integrated.
-8. **Reset demo** — restores the seeded baseline (seed-v1) for a clean re-run.
+8. **Reset demo** — restores the seeded baseline (seed-v2) for a clean re-run.
 
 ## Key details
 
@@ -104,19 +105,38 @@ non-modal, so the copilot stays live on the right while the calendar shows the c
 reschedule renders the original slot as a ghost and the new slot highlighted, and only becomes
 real when you approve it in the copilot. Reschedules are undoable and cleared by Reset demo.
 
-### Re-anchoring the demo clock
+## The demo clock (`src/demoClock.ts`)
 
-`DEMO_TODAY` in `src/calendar.ts` is the single source of truth for the calendar's "today", set to
-`2026-07-22` to match the seeded data. Changing it there alone will desync the rest of the demo —
-account activity dates, referral received/follow-up dates, and the task due dates hardcoded in
-`store.ts` are all generated around that same date. Moving the whole demo to a new date means
-shifting those together, ideally by whole weeks so weekday alignment (and the Wednesday-shaped
-`today.ts` timeline) still holds.
+**The demo is never stale — "today" is always today.** `DEMO_TODAY` is resolved from the real
+date at page load (weekends snap back to Friday), and every other date in the demo is expressed
+relative to it.
+
+All the seeded content was authored around a fixed anchor (`ANCHOR = 2026-07-22`). Those literals
+stay exactly as written in `seed.ts` — readable and reviewable — and are rebased into the current
+era by `shift()`, which slides a date by the same number of days that separates the anchor from
+today. Because the whole timeline moves together, every *relative* fact the narrative depends on
+is preserved precisely: the hero referral R-1042 is always received 6 days ago with a follow-up
+tomorrow, the three at-risk South Richmond referrals are always 14/12/10 days overdue, and
+Elmington's last visit is always 8 days back.
+
+Two things deliberately do **not** derive from the clock:
+
+- `mulberry32(20260722)` in `seed.ts` looks like a date but is a bare PRNG seed. Changing it would
+  reshuffle every generated account and break the tuned figures (52 accounts, 36 referrals, 31%
+  conversion). Leave it alone.
+- Territory metrics, health scores and the Balanced proposal are fixed numbers, unaffected by the
+  date. The PRD Before/After values still reproduce exactly.
+
+The consequence to know about: absolute dates shift day to day, so a script that says "look at
+Thursday" will drift. Speak in relative terms ("tomorrow", "later this week") and the demo reads
+correctly whenever it's shown. To pin the demo to a fixed date instead, replace the body of
+`resolveToday()` with a literal ISO date.
 
 ## Structure
 
 ```
 src/
+  demoClock.ts   the demo clock: today is always today; rebases authored dates
   seed.ts        deterministic synthetic data + health model + fixed proposal
   calendar.ts    synthetic multi-week rep calendars, open-slot finder, reschedule builder
   geo.ts         Richmond lng/lat polygons, GeoJSON builders, mock isochrones/routes
