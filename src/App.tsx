@@ -72,8 +72,10 @@ export default function App() {
 
       {showReset && (
         <>
-          <div className="scrim" onClick={() => setShowReset(false)} />
-          <div className="drawer" style={{ width: 420, height: 'auto', top: '30%', borderRadius: 14, right: '50%', transform: 'translateX(50%)' }}>
+          {/* z above the topbar (52) and the copilot/calendar drawers (51): this confirm can be
+              raised while either drawer is open, and it has to win over what it's confirming. */}
+          <div className="scrim" style={{ zIndex: 56 }} onClick={() => setShowReset(false)} />
+          <div className="drawer" style={{ width: 420, height: 'auto', top: '30%', borderRadius: 14, right: '50%', transform: 'translateX(50%)', zIndex: 57 }}>
             <div className="dhead"><h2>Reset demo?</h2><button className="iconbtn" onClick={() => setShowReset(false)}>×</button></div>
             <div className="dbody">
               This restores the seeded baseline (seed-v1): all assignments, plans, referral dispositions, and audit history are cleared.

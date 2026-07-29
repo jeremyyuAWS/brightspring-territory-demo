@@ -35,7 +35,9 @@ h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 /* ---------- layout ---------- */
 .app { display: flex; flex-direction: column; min-height: 100%; }
-.topbar { background: var(--surface); color: var(--text); padding: 0 20px; display: flex; align-items: center; gap: 18px; height: 60px; position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--border); box-shadow: var(--shadow); }
+/* Sits above .scrim (50) and .drawer (51) so the header stays clickable while a drawer is open —
+   otherwise Reset/Calendar/Copilot are covered and the first click lands on the drawer instead. */
+.topbar { background: var(--surface); color: var(--text); padding: 0 20px; display: flex; align-items: center; gap: 18px; height: 60px; position: sticky; top: 0; z-index: 52; border-bottom: 1px solid var(--border); box-shadow: var(--shadow); }
 .brand { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .brand .bs-divider { width: 1px; height: 26px; background: var(--border); }
 .brand .bs-market { font-size: 11px; font-weight: 650; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; line-height: 1.25; }
@@ -232,7 +234,9 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 /* ---------- drawer ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(15,23,42,.35); z-index: 50; animation: fade .15s; }
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
-.drawer { position: fixed; top: 0; right: 0; height: 100%; width: 480px; max-width: 94vw; background: var(--surface); z-index: 51; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; animation: slidein .2s ease; }
+/* Starts below the 60px topbar so the header controls stay reachable. Callers that position
+   themselves (e.g. the centred reset confirm) override top/height inline. */
+.drawer { position: fixed; top: 60px; right: 0; height: calc(100% - 60px); width: 480px; max-width: 94vw; background: var(--surface); z-index: 51; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; animation: slidein .2s ease; }
 .drawer.wide { width: 560px; }
 @keyframes slidein { from { transform: translateX(100%) } to { transform: translateX(0) } }
 .drawer .dhead { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -437,7 +441,8 @@ table.data tr.row-detail > td { background: var(--surface-2); padding: 14px 16px
 .fac-action { font-size: 13px; color: var(--text-2); line-height: 1.5; margin: 0; }
 .fac-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; margin-top: 6px; }
 
-.tb-modal { position: fixed; inset: 4% 4%; background: var(--surface); z-index: 51; border-radius: 14px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; animation: fade .15s; }
+/* Above .topbar (52): this one is full-bleed and intentionally covers the header. */
+.tb-modal { position: fixed; inset: 4% 4%; background: var(--surface); z-index: 54; border-radius: 14px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; animation: fade .15s; }
 .tb-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .tb-body { flex: 1; display: grid; grid-template-columns: 1.5fr 360px; min-height: 0; }
 .tb-map { height: 100%; width: 100%; }
